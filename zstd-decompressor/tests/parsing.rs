@@ -1,5 +1,5 @@
 #[cfg(test)]
-mod forwrad_byte_parser_tests {
+mod forward_byte_parser_tests {
     use zstd_decompressor::parsing::{self, ForwardByteParser};
 
     #[test]
