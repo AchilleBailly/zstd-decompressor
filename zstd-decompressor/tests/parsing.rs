@@ -25,7 +25,14 @@ mod forward_byte_parser_tests {
 
     #[test]
     fn is_empty() {
-        todo!();
+        let arr = [0x12, 0x23, 0x34];
+        let mut parser = ForwardByteParser::new(&arr);
+        assert_eq!(false, parser.is_empty());
+        assert_eq!(0x12, arr[0]);
+
+        let mut parser = ForwardByteParser::new(&[]);
+        assert_eq!(true, parser.is_empty());
+        ));
     }
 
     #[test]
