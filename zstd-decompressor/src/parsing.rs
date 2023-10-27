@@ -1,3 +1,5 @@
+use std::u8;
+
 use eyre;
 use thiserror;
 
@@ -32,7 +34,7 @@ impl<'a> ForwardByteParser<'a> {
 
     /// Return the number of bytes still unparsed
     pub fn len(&self) -> usize {
-        todo!()
+        return self.0.len();
     }
 
     /// Check if the input is exhausted
@@ -42,8 +44,16 @@ impl<'a> ForwardByteParser<'a> {
 
     /// Extract `len` bytes as a slice
     pub fn slice(&mut self, len: usize) -> Result<&'a [u8]> {
-        todo!()
+        match self.0[len]:Option<u8>{
+            Some (var) => {
+                let res = &mut self.0[0..len+1];
+                self.0 = &self.0[(len+1)..(self.len()+1)];
+                Ok(res)
+            }
+            None => Err(Error::NotEnoughBytes { requested: len, available: self.len() })
+        }
     }
+        
 
     /// Consume and return a u32 in little-endian format
     pub fn le_u32(&mut self) -> Result<u32> {
