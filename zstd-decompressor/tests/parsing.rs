@@ -20,7 +20,11 @@ mod forward_byte_parser_tests {
 
     #[test]
     fn len() {
-        todo!();
+        let parser = ForwardByteParser::new(&[0x12, 0x23, 0x34]);
+        assert!(parser.len() == 3);
+
+        let parser = ForwardByteParser::new(&[]);
+        assert!(parser.len() == 0);
     }
 
     #[test]
@@ -36,7 +40,17 @@ mod forward_byte_parser_tests {
 
     #[test]
     fn slice() {
-        todo!();
+        let mut parser = ForwardByteParser::new(&[0x12, 0x23, 0x34]);
+        let s = parser.slice(2).unwrap();
+        assert_eq!(s, &[0x12, 0x23]);
+
+        assert!(matches!(
+            parser.slice(4),
+            Err(parsing::Error::NotEnoughBytes {
+                requested: 4,
+                available: 3,
+            })
+        ));
     }
 
     #[test]
