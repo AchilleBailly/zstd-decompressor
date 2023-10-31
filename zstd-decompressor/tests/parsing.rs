@@ -26,13 +26,12 @@ mod forward_byte_parser_tests {
     #[test]
     fn is_empty() {
         let arr = [0x12, 0x23, 0x34];
-        let mut parser = ForwardByteParser::new(&arr);
+        let parser = ForwardByteParser::new(&arr);
         assert_eq!(false, parser.is_empty());
         assert_eq!(0x12, arr[0]);
 
-        let mut parser = ForwardByteParser::new(&[]);
+        let parser = ForwardByteParser::new(&[]);
         assert_eq!(true, parser.is_empty());
-        ));
     }
 
     #[test]
@@ -42,6 +41,20 @@ mod forward_byte_parser_tests {
 
     #[test]
     fn le_u32() {
-        todo!();
+        // Check that it returns the write value when enough bytes are present
+        let mut parser = ForwardByteParser::new(&[0x00, 0x00, 0x00, 0x01, 0x10]);
+        assert_eq!(1u32, parser.le_u32().unwrap());
+        assert_eq!(0x10, parser.u8().unwrap());
+
+        // Check that when not enough bytes are present, an error is returned
+        let mut parser = ForwardByteParser::new(&[0x00, 0x00, 0x00]);
+        assert!(matches!(
+            parser.le_u32(),
+            Err(parsing::Error::NotEnoughBytes {
+                requested: 4,
+                available: 3,
+            })
+        ));
+        assert_eq!(3, parser.len());
     }
 }
