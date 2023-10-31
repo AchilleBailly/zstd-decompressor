@@ -46,14 +46,16 @@ impl<'a> ForwardByteParser<'a> {
     pub fn slice(&mut self, len: usize) -> Result<&'a [u8]> {
         let old_len = self.len();
         if old_len < len {
-            // Case where there are fewer bytes availanle than len
+            // Case where there are fewer bytes available than len
             return Err(Error::NotEnoughBytes {
                 requested: len,
                 available: old_len,
             });
         }
 
-        Ok(&self.0[..len])
+        let ret = &self.0[..len];
+        self.0 = &self.0[len..];
+        Ok(ret)
     }
 
     /// Consume and returns a u32 in little-endian format
@@ -67,10 +69,10 @@ impl<'a> ForwardByteParser<'a> {
 
         let (res_array, rest) = self.0.split_at(4);
         self.0 = rest;
-        let res: u32 = (res_array[0] as u32) << 24
-            | (res_array[1] as u32) << 16
-            | (res_array[2] as u32) << 8
-            | res_array[3] as u32;
+        let res: u32 = (res_array[0] as u32)
+            | (res_array[1] as u32) << 8
+            | (res_array[2] as u32) << 16
+            | (res_array[3] as u32) << 24;
 
         Ok(res)
     }

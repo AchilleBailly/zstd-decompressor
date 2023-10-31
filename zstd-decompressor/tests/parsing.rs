@@ -48,7 +48,7 @@ mod forward_byte_parser_tests {
             parser.slice(4),
             Err(parsing::Error::NotEnoughBytes {
                 requested: 4,
-                available: 3,
+                available: 1,
             })
         ));
     }
@@ -56,7 +56,7 @@ mod forward_byte_parser_tests {
     #[test]
     fn le_u32() {
         // Check that it returns the write value when enough bytes are present
-        let mut parser = ForwardByteParser::new(&[0x00, 0x00, 0x00, 0x01, 0x10]);
+        let mut parser = ForwardByteParser::new(&[0x01, 0x00, 0x00, 0x00, 0x10]);
         assert_eq!(1u32, parser.le_u32().unwrap());
         assert_eq!(0x10, parser.u8().unwrap());
 
