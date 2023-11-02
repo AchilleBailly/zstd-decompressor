@@ -3,6 +3,8 @@ use std::u8;
 use eyre;
 use thiserror;
 
+use crate::frame;
+
 pub struct ForwardByteParser<'a>(&'a [u8]);
 
 #[derive(Debug, thiserror::Error)]
@@ -16,6 +18,10 @@ pub type Result<T, E = Error> = eyre::Result<T, E>;
 impl<'a> ForwardByteParser<'a> {
     pub fn new(data: &'a [u8]) -> Self {
         Self(data)
+    }
+
+    pub fn iter(self) -> frame::FrameIterator<'a> {
+        return frame::FrameIterator { parser: self };
     }
 
     /// Retrieve the next byte unparsed
