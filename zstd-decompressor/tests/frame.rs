@@ -104,11 +104,26 @@ mod frame_test {
 
 #[cfg(test)]
 pub mod frame_iterator_tests {
-    use zstd_decompressor::frame::{self, Frame};
-    use zstd_decompressor::parsing::{self, ForwardByteParser};
+    use zstd_decompressor::parsing::ForwardByteParser;
+
+    fn get_valid_skippable_parser() -> ForwardByteParser<'static> {
+        return ForwardByteParser::new(&[
+            0x53, 0x2a, 0x4d, 0x18, 0x03, 0x00, 0x00, 0x00, 0x10, 0x20, 0x30, 0x51, 0x2a, 0x4d,
+            0x18, 0x04, 0x00, 0x00, 0x00, 0x10, 0x20, 0x30, 0x40,
+        ]);
+    }
 
     #[test]
     fn next_test() {
-        todo!();
+        let parser = get_valid_skippable_parser();
+        let mut iter = parser.iter();
+        assert_eq!(
+            iter.next().unwrap().unwrap().decode().unwrap(),
+            vec![0x10, 0x20, 0x30]
+        );
+        assert_eq!(
+            iter.next().unwrap().unwrap().decode().unwrap(),
+            vec![0x10, 0x20, 0x30, 0x40]
+        );
     }
 }
