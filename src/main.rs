@@ -2,7 +2,7 @@ extern crate zstd_decompressor;
 use std::string;
 
 use color_eyre::{self, eyre};
-use zstd_decompressor::parsing::ForwardByteParser;
+use zstd_decompressor::{parsing::ForwardByteParser, frame::FrameIterator};
 use clap::{Parser, command, arg};
 
 #[derive(Parser, Debug)]
@@ -19,8 +19,14 @@ fn main() -> eyre::Result<()> {
     let args = Args::parse();
 
     
-    let file = std::fs::read(args.info);
-    
+    let file = std::fs::read(args.info)?;
+    let mut data = ForwardByteParser::new(file.as_slice());
+    let iterator = FrameIterator{parser : data};
+    for frame in iterator { 
+        println!("{:?}", frame);
+    }
+
+
     
 
     let mut parser = ForwardByteParser::new(&[0x12, 0x23, 0x34]);

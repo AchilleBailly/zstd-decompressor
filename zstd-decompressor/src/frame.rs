@@ -16,11 +16,13 @@ pub enum Error {
 const MAGIC_ZSTD: u32 = 0xFD2FB528;
 const MAGIC_SKIP: u32 = 0x184D2A50; //
 
+#[derive (Debug)]
 pub enum Frame<'a> {
     ZStandardFrame(),
     SkippableFrame(SkippableFrame<'a>),
 }
 
+#[derive (Debug)]
 pub struct SkippableFrame<'a> {
     pub magic: u32,
     pub data: &'a [u8],
@@ -56,7 +58,7 @@ impl<'a> Frame<'a> {
 }
 
 pub struct FrameIterator<'a> {
-    parser: ForwardByteParser<'a>,
+    pub parser: ForwardByteParser<'a>,
 }
 
 impl<'a> Iterator for FrameIterator<'a> {
