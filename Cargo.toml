@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "4.4.7", features = ["derive"] }
+
 color-eyre = "0.6.2"
 eyre = "0.6.8"
 zstd-decompressor = {path = "./zstd-decompressor"}

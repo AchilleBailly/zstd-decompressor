@@ -1,3 +1,5 @@
+use std::path::Iter;
+
 use crate::parsing::ForwardByteParser;
 
 use eyre;
@@ -12,7 +14,7 @@ pub enum Error {
 }
 
 const MAGIC_ZSTD: u32 = 0xFD2FB528;
-const MAGIC_SKIP: u32 = 0x184D2A50;
+const MAGIC_SKIP: u32 = 0x184D2A50; //
 
 pub enum Frame<'a> {
     ZStandardFrame(),
@@ -42,6 +44,28 @@ impl<'a> Frame<'a> {
                 Ok(Frame::SkippableFrame(sf))
             }
             _ => Err(Error::UnrecognizedMagic(magic)),
+        }
+    }
+
+    pub fn decode(self) -> Result<Vec<u8>> {
+        match self {
+            Self::SkippableFrame(frame) => Ok(frame.data.into()),
+            Self::ZStandardFrame() => todo!(),
+        }
+    }
+}
+
+pub struct FrameIterator<'a> {
+    parser: ForwardByteParser<'a>,
+}
+
+impl<'a> Iterator for FrameIterator<'a> {
+    type Item = Result<Frame<'a>>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.parser.len() {
+            0 => None,
+            _ => Some(Frame::parse(&mut self.parser)),
         }
     }
 }
