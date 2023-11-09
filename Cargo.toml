@@ -5,9 +5,13 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[workspace]
+members=["zstd-decompressor"]
+
 [dependencies]
 clap = { version = "4.4.7", features = ["derive"] }
 
 color-eyre = "0.6.2"
 eyre = "0.6.8"
+log = "0.4.20"
 zstd-decompressor = {path = "./zstd-decompressor"}
