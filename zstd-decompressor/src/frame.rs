@@ -81,7 +81,7 @@ impl<'a> Iterator for FrameIterator<'a> {
 
 pub struct FrameHeader {
     content_checksum_flag: bool,
-    window_size: u64,
+    window_size: Option<u64>,
     dictionnary_id: Option<u64>,
     content_size: Option<u64>,
 }
@@ -113,7 +113,11 @@ impl FrameHeader {
             fcs_field_size = Some(2 ^ content_size_flag);
         }
 
-        let window_size = Self::parse_window_descriptor(input)?;
+        let window_size = if single_segment_flag == 1 {
+            None
+        } else {
+            Some(Self::parse_window_descriptor(input)?)
+        };
 
         let dict_id: Option<u64> = if dict_id_flag != 0 {
             let a = input.slice(2 ^ (dict_id_flag - 1) as usize)?;
@@ -131,6 +135,12 @@ impl FrameHeader {
             None => None,
             Some(v) if v == 2 => Some(int_from_array::<u64>(input.slice(v as usize)?) + 256),
             Some(v) => Some(int_from_array(input.slice(v as usize)?)),
+        };
+
+        let window_size = if window_size == None {
+            content_size
+        } else {
+            window_size
         };
 
         Ok(FrameHeader {
