@@ -3,7 +3,7 @@ use std::u8;
 use eyre;
 use thiserror;
 
-use crate::frame;
+use crate::{frame, utils::int_from_array};
 
 pub struct ForwardByteParser<'a>(&'a [u8]);
 
@@ -75,10 +75,7 @@ impl<'a> ForwardByteParser<'a> {
 
         let (res_array, rest) = self.0.split_at(4);
         self.0 = rest;
-        let res: u32 = (res_array[0] as u32)
-            | (res_array[1] as u32) << 8
-            | (res_array[2] as u32) << 16
-            | (res_array[3] as u32) << 24;
+        let res: u32 = int_from_array(res_array);
 
         Ok(res)
     }

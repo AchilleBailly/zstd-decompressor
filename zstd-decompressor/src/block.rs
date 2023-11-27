@@ -1,4 +1,4 @@
-use crate::parsing::ForwardByteParser;
+use crate::{parsing::ForwardByteParser, utils::int_from_array};
 
 use eyre;
 use thiserror;
@@ -22,7 +22,7 @@ pub enum Block<'a> {
 impl<'a> Block<'a> {
     pub fn parse(parser: &mut ForwardByteParser<'a>) -> Result<(Block<'a>, bool)> {
         let header = parser.slice(3)?;
-        let mut header: u32 = header[0] as u32 | (header[1] as u32) << 8 | (header[2] as u32) << 16;
+        let mut header: u32 = int_from_array(header);
 
         let last_block = (header & 1) != 0;
         header >>= 1;
