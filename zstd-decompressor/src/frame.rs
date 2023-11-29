@@ -1,5 +1,8 @@
+use std::any::type_name;
+
 use crate::{
-    parsing::ForwardByteParser,
+    block::Block,
+    parsing::{self, ForwardByteParser},
     utils::{get_n_bits, int_from_array},
 };
 
@@ -16,16 +19,24 @@ pub enum Error {
     ReservedSet(String),
     #[error{"Unvalid checksum in {0}"}]
     UnvalidChecksum(String),
+    #[error{"Block error: {0}"}]
+    BlockError(#[from] crate::block::Error),
     #[error{"Dictionnary ID {0} is reserved but not registered"}]
     UnregisteredReservedDictID(u64),
+    #[error{"Expected checksum from header but is not present"}]
+    MissingChecksum(#[source] parsing::Error),
+    #[error{"Window size is too big: max {max} but got {got}"}]
+    WindowSizeTooBig { max: u64, got: u64 },
 }
 
 const MAGIC_ZSTD: u32 = 0xFD2FB528;
 const MAGIC_SKIP: u32 = 0x184D2A50; //
 
+pub const MAX_WIN_SIZE: u64 = 1024 * 128;
+
 #[derive(Debug)]
 pub enum Frame<'a> {
-    ZStandardFrame(),
+    ZStandardFrame(ZStandardFrame<'a>),
     SkippableFrame(SkippableFrame<'a>),
 }
 
@@ -42,7 +53,7 @@ impl<'a> Frame<'a> {
         let magic = input.le_u32()?;
 
         match magic {
-            MAGIC_ZSTD => todo!(),
+            MAGIC_ZSTD => Ok(Frame::ZStandardFrame(ZStandardFrame::parse(input)?)),
             v if v ^ MAGIC_SKIP <= 0x0F => {
                 let data_len = input.le_u32()? as usize;
                 let sf = SkippableFrame {
@@ -59,7 +70,7 @@ impl<'a> Frame<'a> {
     pub fn decode(self) -> Result<Vec<u8>> {
         match self {
             Self::SkippableFrame(frame) => Ok(frame.data.into()),
-            Self::ZStandardFrame() => todo!(),
+            Self::ZStandardFrame(_frame) => todo!(),
         }
     }
 }
@@ -79,38 +90,39 @@ impl<'a> Iterator for FrameIterator<'a> {
     }
 }
 
+#[derive(Debug)]
 pub struct FrameHeader {
-    content_checksum_flag: bool,
-    window_size: Option<u64>,
-    dictionnary_id: Option<u64>,
-    content_size: Option<u64>,
+    pub content_checksum_flag: bool,
+    pub window_size: u64,
+    pub dictionnary_id: Option<u64>,
+    pub content_size: Option<u64>,
 }
 
 impl FrameHeader {
     pub fn parse<'a>(input: &mut ForwardByteParser<'a>) -> Result<Self> {
         let header_descriptor = input.u8()?;
 
-        let (header_descriptor, dict_id_flag) = get_n_bits(header_descriptor, 2);
-        let (header_descriptor, content_checksum_flag) = get_n_bits(header_descriptor, 1);
+        let (dict_id_flag, header_descriptor) = get_n_bits(header_descriptor, 2);
+        let (content_checksum_flag, header_descriptor) = get_n_bits(header_descriptor, 1);
 
-        let (mut header_descriptor, reserved) = get_n_bits(header_descriptor, 1);
+        let (reserved, mut header_descriptor) = get_n_bits(header_descriptor, 1);
         if reserved != 0 {
-            return Err(Error::ReservedSet("block header descriptor".to_string()));
+            return Err(Error::ReservedSet(type_name::<Self>().to_string()));
             // See https://datatracker.ietf.org/doc/html/rfc8878#name-frame-header
         }
 
         // Unused bit, see https://datatracker.ietf.org/doc/html/rfc8878#section-3.1.1.1.1.3
         header_descriptor >>= 1;
 
-        let (header_descriptor, single_segment_flag) = get_n_bits(header_descriptor, 1);
-        let (_, content_size_flag) = get_n_bits(header_descriptor, 2);
+        let (single_segment_flag, header_descriptor) = get_n_bits(header_descriptor, 1);
+        let (content_size_flag, _) = get_n_bits(header_descriptor, 2);
         let fcs_field_size;
         if content_size_flag == 0 && single_segment_flag == 0 {
             fcs_field_size = None;
         } else if single_segment_flag == 1 {
             fcs_field_size = Some(1u8);
         } else {
-            fcs_field_size = Some(2 ^ content_size_flag);
+            fcs_field_size = Some(1 << content_size_flag);
         }
 
         let window_size = if single_segment_flag == 1 {
@@ -120,16 +132,16 @@ impl FrameHeader {
         };
 
         let dict_id: Option<u64> = if dict_id_flag != 0 {
-            let a = input.slice(2 ^ (dict_id_flag - 1) as usize)?;
+            let a = input.slice(1 << (dict_id_flag - 1) as usize)?;
             Some(int_from_array(a))
         } else {
             None
         };
-        if let Some(v) = dict_id {
-            if v <= 32767 || v >= (1 << 31) {
-                return Err(Error::UnregisteredReservedDictID(v));
-            }
-        }
+        // if let Some(v) = dict_id {
+        //     if v <= 32767 || v >= (1 << 31) {
+        //         return Err(Error::UnregisteredReservedDictID(v)); // TODO: check registration of the dict ID
+        //     }
+        // }
 
         let content_size = match fcs_field_size {
             None => None,
@@ -137,11 +149,9 @@ impl FrameHeader {
             Some(v) => Some(int_from_array(input.slice(v as usize)?)),
         };
 
-        let window_size = if window_size == None {
-            content_size
-        } else {
-            window_size
-        };
+        let window_size = window_size
+            .or(content_size)
+            .expect("Invalid configuration, no window size and no content_size !");
 
         Ok(FrameHeader {
             content_checksum_flag: content_checksum_flag != 0,
@@ -153,11 +163,103 @@ impl FrameHeader {
 
     fn parse_window_descriptor<'a>(input: &mut ForwardByteParser<'a>) -> Result<u64> {
         let window_descriptor = input.u8()?;
-        let (exponent, mantissa) = get_n_bits(window_descriptor, 3);
+        let (mantissa, exponent) = get_n_bits(window_descriptor, 3);
 
         let window_base = 1 << (exponent as u64 + 10);
         let window_add = (window_base / 8) * mantissa as u64;
 
         Ok(window_base + window_add)
+    }
+}
+
+#[derive(Debug)]
+pub struct ZStandardFrame<'a> {
+    header: FrameHeader,
+    blocks: Vec<Block<'a>>,
+    checksum: Option<u32>,
+}
+
+impl<'a> ZStandardFrame<'a> {
+    pub fn parse(input: &mut ForwardByteParser<'a>) -> Result<Self> {
+        let header = FrameHeader::parse(input)?;
+
+        if header.window_size > MAX_WIN_SIZE {
+            return Err(Error::WindowSizeTooBig {
+                max: MAX_WIN_SIZE,
+                got: header.window_size,
+            });
+        }
+
+        let mut blocks: Vec<Block> = vec![];
+
+        loop {
+            let (cur, last) = Block::parse(input)?;
+            blocks.push(cur);
+
+            if last {
+                break;
+            }
+        }
+
+        let checksum = if header.content_checksum_flag {
+            Some(input.le_u32().map_err(Error::MissingChecksum)?)
+        } else {
+            None
+        };
+
+        Ok(ZStandardFrame {
+            header,
+            blocks,
+            checksum,
+        })
+    }
+
+    pub fn header(&self) -> &FrameHeader {
+        &self.header
+    }
+
+    pub fn checksum(&self) -> Option<u32> {
+        self.checksum
+    }
+
+    pub fn blocks(&self) -> &Vec<Block<'a>> {
+        &self.blocks
+    }
+}
+
+#[cfg(test)]
+mod parse_window_descriptor_tests {
+    use crate::parsing::ForwardByteParser;
+
+    use super::FrameHeader;
+
+    #[test]
+    fn parse_window_descriptor_min_ok() {
+        let mut parser = ForwardByteParser::new(&[0]);
+
+        assert_eq!(
+            1 << 10,
+            FrameHeader::parse_window_descriptor(&mut parser).unwrap()
+        );
+    }
+
+    #[test]
+    fn parse_window_descriptor_max_ok() {
+        let mut parser = ForwardByteParser::new(&[0xff]);
+
+        assert_eq!(
+            (1 << 41) + 7 * (1 << 38),
+            FrameHeader::parse_window_descriptor(&mut parser).unwrap()
+        );
+    }
+
+    #[test]
+    fn parse_window_descriptor_min_and_1_ok() {
+        let mut parser = ForwardByteParser::new(&[0b00000001]);
+
+        assert_eq!(
+            (1 << 10) + 1024 / 8,
+            FrameHeader::parse_window_descriptor(&mut parser).unwrap()
+        );
     }
 }
