@@ -14,6 +14,10 @@ struct Args {
     ///Dump information about frames instead of outputing the result
     #[arg(short, long)]
     info: bool,
+
+    ///Output Skippable frames as well
+    #[arg(short, long, action)]
+    print_skippable: bool,
 }
 
 fn main() -> eyre::Result<()> {
@@ -31,13 +35,19 @@ fn main() -> eyre::Result<()> {
         return Ok(());
     }
 
+    let mut res: Vec<u8> = vec![];
     for frame in parser.iter() {
         match frame {
-            Ok(Frame::SkippableFrame(_v)) => continue,
-            Ok(Frame::ZStandardFrame()) => todo!(),
+            Ok(Frame::SkippableFrame(skippable)) => {
+                if args.print_skippable {
+                    res.append(&mut Frame::SkippableFrame(skippable).decode()?)
+                }
+            }
+            Ok(frame) => res.append(&mut frame.decode()?),
             Err(e) => return Err(e.into()),
         }
     }
+    println!("{}", String::from_utf8(res).unwrap());
 
     Ok(())
 }

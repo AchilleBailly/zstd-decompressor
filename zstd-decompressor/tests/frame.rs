@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod frame_test {
     use zstd_decompressor::frame::{self, Frame};
-    use zstd_decompressor::parsing::{self, ForwardByteParser};
+    use zstd_decompressor::parsing::ForwardByteParser;
 
     fn get_valid_skippable_parser() -> ForwardByteParser<'static> {
         return ForwardByteParser::new(&[

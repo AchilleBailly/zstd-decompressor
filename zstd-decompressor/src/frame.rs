@@ -70,7 +70,7 @@ impl<'a> Frame<'a> {
     pub fn decode(self) -> Result<Vec<u8>> {
         match self {
             Self::SkippableFrame(frame) => Ok(frame.data.into()),
-            Self::ZStandardFrame(_frame) => todo!(),
+            Self::ZStandardFrame(frame) => frame.decode(),
         }
     }
 }
@@ -212,6 +212,19 @@ impl<'a> ZStandardFrame<'a> {
             blocks,
             checksum,
         })
+    }
+
+    pub fn decode(&self) -> Result<Vec<u8>> {
+        let mut res: Vec<u8> =
+            Vec::with_capacity(self.header.content_size.unwrap_or_default() as usize);
+        // might overflow later if content is too big !! -> file issue not ours
+
+        for block in &self.blocks[..] {
+            let mut tmp = block.decode()?; // Copying block content, TODO: check if possible other way
+            res.append(&mut tmp);
+        }
+
+        Ok(res)
     }
 
     pub fn header(&self) -> &FrameHeader {

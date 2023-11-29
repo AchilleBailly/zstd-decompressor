@@ -13,7 +13,7 @@ pub enum Error {
 
 type Result<T> = eyre::Result<T, Error>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum Block<'a> {
     RawBlock(&'a [u8]),
     RLEBlock { byte: u8, repeat: u32 },
