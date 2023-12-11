@@ -72,3 +72,106 @@ mod forward_byte_parser_tests {
         assert_eq!(3, parser.len());
     }
 }
+
+#[cfg(test)]
+mod forward_bit_parser_tests {
+    use zstd_decompressor::parsing;
+
+    #[test]
+    fn is_empty_ok() {
+        let data: &[u8] = &[];
+
+        let parser = parsing::ForwardBitParser::new(data);
+
+        assert!(parser.is_empty());
+    }
+
+    #[test]
+    fn is_empty_nok() {
+        let data: &[u8] = &[1];
+
+        let parser = parsing::ForwardBitParser::new(data);
+
+        assert!(!parser.is_empty());
+    }
+
+    #[test]
+    fn len_ok() {
+        let data: &[u8] = &[];
+
+        let parser = parsing::ForwardBitParser::new(data);
+
+        assert!(parser.len() == 0);
+    }
+
+    #[test]
+    fn len_ok2() {
+        let data: &[u8] = &[1];
+
+        let parser = parsing::ForwardBitParser::new(data);
+
+        assert!(parser.len() == 8);
+    }
+
+    #[test]
+    fn take_whole_byte_ok() {
+        let data = &[75];
+
+        let mut parser = parsing::ForwardBitParser::new(data);
+
+        assert_eq!(75, parser.take(8).unwrap());
+        assert!(parser.is_empty());
+    }
+
+    #[test]
+    fn take_whole_byte_and_half_ok() {
+        let data = &[75, 0b0000_1111];
+
+        let mut parser = parsing::ForwardBitParser::new(data);
+
+        assert_eq!((15 << 8) + 75, parser.take(12).unwrap());
+        assert!(parser.len() == 4);
+    }
+
+    #[test]
+    fn take_few_ok() {
+        let data = &[0b0101_1010, 0b1100_0011];
+
+        let mut parser = parsing::ForwardBitParser::new(data);
+
+        assert_eq!(0b010, parser.take(3).unwrap());
+        assert_eq!(0b011, parser.take(3).unwrap());
+        assert_eq!(0b1101, parser.take(4).unwrap());
+        assert_eq!(0b110000, parser.take(6).unwrap());
+        assert!(parser.is_empty());
+    }
+
+    #[test]
+    fn take_more_than_64_nok() {
+        let data = &[1; 10];
+
+        let mut parser = parsing::ForwardBitParser::new(data);
+
+        assert!(matches!(
+            parser.take(67),
+            Err(parsing::Error::MaximumReadableBitsExceeded(67))
+        ));
+        assert_eq!(80, parser.len());
+    }
+
+    #[test]
+    fn take_more_than_available_nok() {
+        let data = &[1; 6];
+
+        let mut parser = parsing::ForwardBitParser::new(data);
+
+        assert!(matches!(
+            parser.take(60),
+            Err(parsing::Error::NotEnoughBits {
+                requested: 60,
+                available: 48
+            })
+        ));
+        assert_eq!(48, parser.len());
+    }
+}

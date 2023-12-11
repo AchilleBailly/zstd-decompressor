@@ -1,16 +1,24 @@
 use std::u8;
 
+use bitbuffer::{BitReadBuffer, LittleEndian};
 use eyre;
 use thiserror;
 
-use crate::{frame, utils::int_from_array};
+use crate::{
+    frame,
+    utils::{self, int_from_array},
+};
 
 pub struct ForwardByteParser<'a>(&'a [u8]);
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error{"Not enough byte: {requested} requested out of {available} available."}]
+    #[error{"Not enough bytes: {requested} requested out of {available} available."}]
     NotEnoughBytes { requested: usize, available: usize },
+    #[error{"Not enough bits: {requested} requested out of {available} available."}]
+    NotEnoughBits { requested: usize, available: usize },
+    #[error{"Maximum readable bits (64) exceded: requested {0}."}]
+    MaximumReadableBitsExceeded(usize),
 }
 
 pub type Result<T, E = Error> = eyre::Result<T, E>;
@@ -76,6 +84,53 @@ impl<'a> ForwardByteParser<'a> {
         let (res_array, rest) = self.0.split_at(4);
         self.0 = rest;
         let res: u32 = int_from_array(res_array);
+
+        Ok(res)
+    }
+}
+
+pub struct ForwardBitParser<'a> {
+    data: BitReadBuffer<'a, LittleEndian>,
+    readable: usize,
+    pos: usize,
+}
+
+impl<'a> ForwardBitParser<'a> {
+    /// Create a new forward bit parser
+    pub fn new(data: &'a [u8]) -> Self {
+        ForwardBitParser {
+            data: BitReadBuffer::new(data, LittleEndian),
+            readable: data.len() * 8,
+            pos: 0,
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.readable
+    }
+
+    /// True if there are no bits left to read
+    pub fn is_empty(&self) -> bool {
+        self.readable == 0
+    }
+
+    /// Get the given number of bits, or return an error.
+    pub fn take(&mut self, len: usize) -> Result<u64> {
+        if self.data.bit_len() < len {
+            return Err(Error::NotEnoughBits {
+                requested: len,
+                available: self.data.bit_len(),
+            });
+        }
+        if len > 64 {
+            return Err(Error::MaximumReadableBitsExceeded(len));
+        }
+
+        // we verified up there the conditions, can not fail
+        let res = self.data.read_int(self.pos, len).unwrap();
+
+        self.readable -= len;
+        self.pos += len;
 
         Ok(res)
     }
