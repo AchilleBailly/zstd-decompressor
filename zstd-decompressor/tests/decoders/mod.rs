@@ -1,1 +1,2 @@
 mod fse;
+mod huffman;
