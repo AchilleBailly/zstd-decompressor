@@ -93,9 +93,9 @@ impl HuffmanDecoder {
                         left: Box::new(HuffmanDecoder::Absent),
                         right: Box::new(HuffmanDecoder::Absent),
                     };
-                    self.insert(symbol, width - 1);
+                    self.insert(symbol, width);
                 }
-                HuffmanDecoder::Symbol { payload: _ } => panic!(),
+                HuffmanDecoder::Symbol { payload: _ } => return false ,
             }
         }
         return true;
@@ -124,7 +124,9 @@ impl HuffmanDecoder {
                 sum += pow(2, (weights[i] - 1).into());
             }
         }
-        let puissance: u8 = sum.ilog2().try_into().unwrap();
+        let mut puissance: u8 = sum.ilog2().try_into().unwrap();
+        //ilog2 arrondit par valeur inférieure
+        puissance += 1;
         let manquant: u8 = ((pow(2, puissance.try_into().unwrap()) - sum).ilog2() + 1)
             .try_into()
             .unwrap();
