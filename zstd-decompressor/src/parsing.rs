@@ -134,4 +134,22 @@ impl<'a> ForwardBitParser<'a> {
 
         Ok(res)
     }
+
+    /// Peek at next len bits without consuming them
+    pub fn peek(&self, len: usize) -> Result<u64> {
+        if self.data.bit_len() < len {
+            return Err(Error::NotEnoughBits {
+                requested: len,
+                available: self.data.bit_len(),
+            });
+        }
+        if len > 64 {
+            return Err(Error::MaximumReadableBitsExceeded(len));
+        }
+
+        // we verified up there the conditions, can not fail
+        let res = self.data.read_int(self.pos, len).unwrap();
+
+        Ok(res)
+    }
 }
