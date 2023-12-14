@@ -21,6 +21,22 @@ pub(crate) fn int_from_array<T: num_traits::PrimInt + From<u8>>(input: &[u8]) ->
     res
 }
 
+/// Return the minimum amount of bits required to represent the given value
+pub(crate) fn min_bits_required<T: num_traits::PrimInt + From<u8>>(value: T) -> u8 {
+    if value == 0.into() {
+        return 1; // Special case for 0, which requires at least 1 bit.
+    }
+
+    (T::trailing_zeros(0.into()) - value.leading_zeros()) as u8
+}
+
+pub(crate) fn discrete_log2<T: num_traits::PrimInt + From<u8>>(value: T) -> u8 {
+    if value <= 0.into() {
+        panic!("Cannot call log on negative or zero value");
+    }
+    min_bits_required(value) - 1
+}
+
 #[cfg(test)]
 mod tests {
     use super::{get_n_bits, int_from_array};
