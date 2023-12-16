@@ -1,6 +1,6 @@
 use std::u8;
 
-use bitbuffer::{BitError, BitReadBuffer, LittleEndian, BigEndian};
+use bitbuffer::{BigEndian, BitError, BitReadBuffer, LittleEndian};
 use eyre;
 use thiserror;
 
@@ -94,7 +94,7 @@ impl<'a> ForwardByteParser<'a> {
 
 pub trait BitParser<'a> {
     /// Create a new BitParser from the data
-    fn new(data: &'a mut [u8]) -> Result<Self>
+    fn new(data: &'a [u8]) -> Result<Self>
     where
         Self: Sized;
 
@@ -119,7 +119,7 @@ pub struct ForwardBitParser<'a> {
 
 impl<'a> BitParser<'a> for ForwardBitParser<'a> {
     /// Create a new forward bit parser
-    fn new(data: &'a mut [u8]) -> Result<Self> {
+    fn new(data: &'a [u8]) -> Result<Self> {
         if data.len() == 0 {
             return Err(Error::EmptyInputData);
         }
@@ -179,49 +179,36 @@ impl<'a> BitParser<'a> for ForwardBitParser<'a> {
     }
 }
 
-pub struct BackwardBitParser<'a> {
-    bytes: BitReadBuffer<'a, BigEndian>,
-    readable:usize,
+pub struct BackwardBitParser {
+    data: Vec<u8>,
+    readable: usize,
     pos: usize,
-    
 }
 
-impl<'a> BitParser<'a> for BackwardBitParser<'a> {
-
+impl<'a> BitParser<'a> for BackwardBitParser {
     /// Create a new backward bit parser. The header is skipped automatically or
     /// an error is returned if the initial 1 cannot be found in the first 8 bits.
-    fn new(data: &'a mut [u8]) -> Result<Self> {
+    fn new(data: &'a [u8]) -> Result<Self> {
         if data.len() == 0 {
             return Err(Error::EmptyInputData);
         }
-        let mut i = 0;
-        if data[data.len() - 1] == 1 {
-            data.reverse();
-            return Ok(BackwardBitParser {
-                bytes: BitReadBuffer::new(data, BigEndian),
-                readable: data.len() * 8 - 8,
-                pos: 8,
-            });
-        } else {
-            while data[data.len() - 1] & 1 << 7 - i == 0 {
-                    i+=1;
-                if i == 7 {
-                    return Err(Error::NullByte);
-                }
-            }
-    
-        
-
-            data.reverse();
-            Ok(BackwardBitParser {
-                bytes: BitReadBuffer::new(data, BigEndian),
-                readable: data.len() * 8 - i + 1,
-                pos: i+1,
-            })
+        if data.last().unwrap() == &0 {
+            return Err(Error::NullByte);
         }
+
+        let data = data.iter().rev().map(|&v| v).collect::<Vec<u8>>();
+        let mut i = 1;
+
+        while data[0] & (1 << (8 - i)) == 0 {
+            i += 1;
+        }
+
+        Ok(BackwardBitParser {
+            readable: data.len() * 8 - i,
+            data: data,
+            pos: i,
+        })
     }
-
-
 
     /// True if there are no bits left to read
     fn is_empty(&self) -> bool {
@@ -230,7 +217,7 @@ impl<'a> BitParser<'a> for BackwardBitParser<'a> {
 
     /// Get the given number of bits, or return an error.
     fn take(&mut self, len: usize) -> Result<u64> {
-        if self.bytes.bit_len() < len {
+        if self.data.len() * 8 < len {
             return Err(Error::NotEnoughBits {
                 requested: len,
                 available: self.len(),
@@ -240,18 +227,17 @@ impl<'a> BitParser<'a> for BackwardBitParser<'a> {
             return Err(Error::MaximumReadableBitsExceeded(len));
         }
 
-
         // we verified up there the conditions, can not fail
 
-        let res = self.bytes.read_int(self.pos, len).unwrap();
+        let res = BitReadBuffer::new(&self.data, BigEndian)
+            .read_int(self.pos, len)
+            .unwrap();
 
         self.readable -= len;
         self.pos += len;
 
         Ok(res)
     }
-
-   
 
     fn len(&self) -> usize {
         self.readable
