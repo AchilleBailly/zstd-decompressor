@@ -7,7 +7,7 @@ mod fse_decoder_tests {
     fn parse_fse_table_test_ok() {
         let data = &[0x30, 0x6f, 0x9b, 0x03];
 
-        let mut parser = ForwardBitParser::new(data);
+        let mut parser = ForwardBitParser::new(data).unwrap();
 
         let (accuracy_log, table) = fse::parse_fse_table(&mut parser).unwrap();
         assert_eq!(5, accuracy_log);
@@ -35,7 +35,7 @@ mod fse_decoder_tests {
             0x21, 0x9d, 0x51, 0xcc, 0x18, 0x42, 0x44, 0x81, 0x8c, 0x94, 0xb4, 0x50, 0x1e,
         ];
 
-        let mut parser = ForwardBitParser::new(data.as_slice());
+        let mut parser = ForwardBitParser::new(data.as_slice()).unwrap();
         let table = fse::FseTable::parse(&mut parser).unwrap();
 
         assert!(matches!(
@@ -97,7 +97,7 @@ mod fes_decoder_tests {
         };
 
         let data: &[u8; 2] = &[0b10000111, 0b10];
-        let mut parser = ForwardBitParser::new(data);
+        let mut parser = ForwardBitParser::new(data).unwrap();
 
         let mut decoder = FseDecoder::from(table);
         decoder.initialize(&mut parser).unwrap();

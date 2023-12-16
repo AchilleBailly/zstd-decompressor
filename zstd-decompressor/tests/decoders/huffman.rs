@@ -1,5 +1,9 @@
 mod huffman_test {
-    use zstd_decompressor::{decoders::huffman::{self, HuffmanDecoder}, parsing::BackwardBitParser};
+    use zstd_decompressor::{
+        decoders::huffman::{self, HuffmanDecoder},
+        parsing::BackwardBitParser,
+        parsing::BitParser,
+    };
 
     #[test]
     fn example_tree() {
@@ -56,7 +60,7 @@ mod huffman_test {
         let mut result = String::new();
         while !parser.is_empty() {
             let decoded = decoder.decode(&mut parser).unwrap();
-            result.push(decoded as char);  // We know they are valid A, B, or C char
+            result.push(decoded as char); // We know they are valid A, B, or C char
         }
         assert_eq!(result, "BABCBB");
     }

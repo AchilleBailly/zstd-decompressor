@@ -81,7 +81,7 @@ mod forward_bit_parser_tests {
     fn is_empty_ok() {
         let data: &[u8] = &[];
 
-        let parser = parsing::ForwardBitParser::new(data);
+        let parser = parsing::ForwardBitParser::new(data).unwrap();
 
         assert!(parser.is_empty());
     }
@@ -90,7 +90,7 @@ mod forward_bit_parser_tests {
     fn is_empty_nok() {
         let data: &[u8] = &[1];
 
-        let parser = parsing::ForwardBitParser::new(data);
+        let parser = parsing::ForwardBitParser::new(data).unwrap();
 
         assert!(!parser.is_empty());
     }
@@ -99,7 +99,7 @@ mod forward_bit_parser_tests {
     fn len_ok() {
         let data: &[u8] = &[];
 
-        let parser = parsing::ForwardBitParser::new(data);
+        let parser = parsing::ForwardBitParser::new(data).unwrap();
 
         assert!(parser.len() == 0);
     }
@@ -108,7 +108,7 @@ mod forward_bit_parser_tests {
     fn len_ok2() {
         let data: &[u8] = &[1];
 
-        let parser = parsing::ForwardBitParser::new(data);
+        let parser = parsing::ForwardBitParser::new(data).unwrap();
 
         assert!(parser.len() == 8);
     }
@@ -117,7 +117,7 @@ mod forward_bit_parser_tests {
     fn take_whole_byte_ok() {
         let data = &[75];
 
-        let mut parser = parsing::ForwardBitParser::new(data);
+        let mut parser = parsing::ForwardBitParser::new(data).unwrap();
 
         assert_eq!(75, parser.take(8).unwrap());
         assert!(parser.is_empty());
@@ -127,7 +127,7 @@ mod forward_bit_parser_tests {
     fn take_whole_byte_and_half_ok() {
         let data = &[75, 0b0000_1111];
 
-        let mut parser = parsing::ForwardBitParser::new(data);
+        let mut parser = parsing::ForwardBitParser::new(data).unwrap();
 
         assert_eq!((15 << 8) + 75, parser.take(12).unwrap());
         assert!(parser.len() == 4);
@@ -137,7 +137,7 @@ mod forward_bit_parser_tests {
     fn take_few_ok() {
         let data = &[0b0101_1010, 0b1100_0011];
 
-        let mut parser = parsing::ForwardBitParser::new(data);
+        let mut parser = parsing::ForwardBitParser::new(data).unwrap();
 
         assert_eq!(0b010, parser.take(3).unwrap());
         assert_eq!(0b011, parser.take(3).unwrap());
@@ -150,7 +150,7 @@ mod forward_bit_parser_tests {
     fn take_more_than_64_nok() {
         let data = &[1; 10];
 
-        let mut parser = parsing::ForwardBitParser::new(data);
+        let mut parser = parsing::ForwardBitParser::new(data).unwrap();
 
         assert!(matches!(
             parser.take(67),
@@ -163,7 +163,7 @@ mod forward_bit_parser_tests {
     fn take_more_than_available_nok() {
         let data = &[1; 6];
 
-        let mut parser = parsing::ForwardBitParser::new(data);
+        let mut parser = parsing::ForwardBitParser::new(data).unwrap();
 
         assert!(matches!(
             parser.take(60),
@@ -177,20 +177,124 @@ mod forward_bit_parser_tests {
 }
 
 mod backward_bit_parser_tests {
-    use zstd_decompressor::{decoders::huffman::HuffmanDecoder, parsing::BackwardBitParser};
+    use zstd_decompressor::{
+        decoders::huffman::HuffmanDecoder,
+        parsing::{self, BackwardBitParser, BitParser},
+    };
 
-#[test]
-fn huffman_project_example() {
-    // 0 repeated 65 times, 1, 2
-    let weights: Vec<_> = std::iter::repeat(0).take(65).chain([1, 2]).collect();
-    let decoder = HuffmanDecoder::from_weights(weights).unwrap();
-    let mut parser = BackwardBitParser::new(&[0x97, 0x01]).unwrap();
-    let mut result = String::new();
-    while !parser.is_empty() {
-        let decoded = decoder.decode(&mut parser).unwrap();
-        result.push(decoded as char);  // We know they are valid A, B, or C char
+    #[test]
+    fn huffman_project_example() {
+        // 0 repeated 65 times, 1, 2
+        let weights: Vec<_> = std::iter::repeat(0).take(65).chain([1, 2]).collect();
+        let decoder = HuffmanDecoder::from_weights(weights).unwrap();
+        let mut parser = BackwardBitParser::new(&[0x97, 0x01]).unwrap();
+        let mut result = String::new();
+        while !parser.is_empty() {
+            let decoded = decoder.decode(&mut parser).unwrap();
+            result.push(decoded as char); // We know they are valid A, B, or C char
+        }
+        assert_eq!(result, "BABCBB");
     }
-    assert_eq!(result, "BABCBB");
-}
 
+    #[test]
+    fn is_empty_ok() {
+        let data: &[u8] = &[];
+
+        let parser = BackwardBitParser::new(data).unwrap();
+
+        assert!(parser.is_empty());
+    }
+
+    #[test]
+    fn is_empty_nok() {
+        let data: &[u8] = &[1];
+
+        let parser = BackwardBitParser::new(data).unwrap();
+
+        assert!(!parser.is_empty());
+    }
+
+    #[test]
+    fn len_ok() {
+        let data: &[u8] = &[];
+
+        let parser = BackwardBitParser::new(data).unwrap();
+
+        assert!(parser.len() == 0);
+    }
+
+    #[test]
+    fn len_ok2() {
+        let data: &[u8] = &[0x5f, 1];
+        // 1001_1111__0000_0001 -> in natural order : 0000_0001__0101_1111
+        // LitlleEndian : -> 1111_1001__1000_0000 ->
+        // BigEndian (0xbf): -> 1011_1111 -> 0b1111_1101
+
+        let parser = BackwardBitParser::new(data).unwrap();
+
+        assert!(parser.len() == 8);
+    }
+
+    #[test]
+    fn take_whole_byte_ok() {
+        let data: &[u8] = &[0x5f, 1];
+        // 0101_1111__0000_0001 -> in natural order : 0000_0001__0101_1111
+
+        let mut parser = BackwardBitParser::new(data).unwrap();
+
+        assert_eq!(0b1111_1010, parser.take(8).unwrap());
+        assert!(parser.is_empty());
+    }
+
+    #[test]
+    fn take_whole_byte_and_half_ok() {
+        let data = &[75, 0b1111_0000, 1];
+
+        let mut parser = BackwardBitParser::new(data).unwrap();
+
+        assert_eq!((15 << 8) + 75, parser.take(12).unwrap());
+        assert!(parser.len() == 4);
+    }
+
+    #[test]
+    fn take_few_ok() {
+        let data = &[0b0101_1010, 0b1100_0011, 1];
+
+        let mut parser = BackwardBitParser::new(data).unwrap();
+
+        assert_eq!(0b110, parser.take(3).unwrap());
+        assert_eq!(0, parser.take(3).unwrap());
+        assert_eq!(0b1101, parser.take(4).unwrap());
+        assert_eq!(0b011010, parser.take(6).unwrap());
+        assert!(parser.is_empty());
+    }
+
+    #[test]
+    fn take_more_than_64_nok() {
+        let data = &[1; 10];
+
+        let mut parser = BackwardBitParser::new(data).unwrap();
+
+        assert!(matches!(
+            parser.take(67),
+            Err(parsing::Error::MaximumReadableBitsExceeded(67))
+        ));
+        assert_eq!(72, parser.len());
+    }
+
+    #[test]
+    fn take_more_than_available_nok() {
+        let data = &[1; 6];
+
+        let mut parser = BackwardBitParser::new(data).unwrap();
+
+        assert!(matches!(
+            parser.take(60),
+            Err(parsing::Error::NotEnoughBits {
+                requested: 60,
+                available: 40
+            })
+        ));
+        assert_eq!(40, parser.len());
+    }
 }
