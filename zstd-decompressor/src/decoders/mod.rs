@@ -2,6 +2,7 @@ use crate::parsing::BitParser;
 
 pub mod fse;
 pub mod huffman;
+pub mod alternating;
 
 /// A (possibly) stateful bit-level decoder
 pub trait BitDecoder<'a, E, Out = u8> {

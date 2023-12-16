@@ -108,6 +108,7 @@ struct TmpState {
     bits_to_read: Option<u8>,
 }
 
+#[derive(Clone, Debug)]
 pub struct FseTable {
     pub table: Vec<State>,
     pub al: u8,
