@@ -1,4 +1,4 @@
-use crate::{parsing::ForwardByteParser, utils::int_from_array};
+use crate::{decoding_context::DecodingContext, parsing::ForwardByteParser, utils::int_from_array};
 
 use eyre;
 use thiserror;
@@ -9,6 +9,8 @@ pub enum Error {
     ReservedBlockType(),
     #[error{"Parsing error: {0}"}]
     ParsingError(#[from] crate::parsing::Error),
+    #[error{"Block decoded size exceeds maximum accepted size."}]
+    LargeBlockSize,
 }
 
 type Result<T> = eyre::Result<T, Error>;
@@ -47,10 +49,22 @@ impl<'a> Block<'a> {
         }
     }
 
-    pub fn decode(self) -> Result<Vec<u8>> {
-        match self {
-            Self::RawBlock(a) => Ok(Vec::from(a)),
-            Self::RLEBlock { byte, repeat } => Ok(vec![byte; repeat as usize]),
+    pub fn decode(self, context: &mut DecodingContext) -> Result<()> {
+        let mut decoded = match self {
+            Self::RawBlock(a) => Vec::from(a),
+            Self::RLEBlock { byte, repeat } => vec![byte; repeat as usize],
+        };
+
+        if decoded.len() as u64 > context.window_size {
+            return Err(Error::LargeBlockSize);
+        } else if decoded.len() + context.decoded.len() > context.window_size as usize {
+            for _ in 0..decoded.len() + context.decoded.len() - context.window_size as usize {
+                context.decoded.remove(0);
+            }
         }
+
+        context.decoded.append(&mut decoded);
+
+        Ok(())
     }
 }

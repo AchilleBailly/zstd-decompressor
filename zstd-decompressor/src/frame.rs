@@ -2,6 +2,7 @@ use std::any::type_name;
 
 use crate::{
     block::Block,
+    decoding_context::DecodingContext,
     parsing::{self, ForwardByteParser},
     utils::{get_n_bits, int_from_array},
 };
@@ -27,12 +28,14 @@ pub enum Error {
     MissingChecksum(#[source] parsing::Error),
     #[error{"Window size is too big: max {max} but got {got}"}]
     WindowSizeTooBig { max: u64, got: u64 },
+    #[error{"Decoded block's size exceeded the annonced content size: "}]
+    ContentSizeTooBig(),
 }
 
 const MAGIC_ZSTD: u32 = 0xFD2FB528;
 const MAGIC_SKIP: u32 = 0x184D2A50; //
 
-pub const MAX_WIN_SIZE: u64 = 1024 * 128;
+pub const MAX_WIN_SIZE: u64 = 8 * 1 << 20; // 8MiB
 
 #[derive(Debug)]
 pub enum Frame<'a> {
@@ -215,16 +218,13 @@ impl<'a> ZStandardFrame<'a> {
     }
 
     pub fn decode(&self) -> Result<Vec<u8>> {
-        let mut res: Vec<u8> =
-            Vec::with_capacity(self.header.content_size.unwrap_or_default() as usize);
-        // might overflow later if content is too big !! -> file issue not ours
+        let mut context = DecodingContext::new(self.header.window_size)?;
 
         for block in &self.blocks[..] {
-            let mut tmp = block.decode()?; // Copying block content, TODO: check if possible other way
-            res.append(&mut tmp);
+            block.decode(&mut context)?; // Copying block content, TODO: check if possible other way
         }
 
-        Ok(res)
+        Ok(context.decoded)
     }
 
     pub fn header(&self) -> &FrameHeader {
