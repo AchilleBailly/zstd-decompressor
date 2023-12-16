@@ -3,7 +3,7 @@ use std::any::type_name;
 use crate::{
     block::Block,
     decoding_context::DecodingContext,
-    parsing::{self, ForwardByteParser},
+    parsing::{self, BitParser, ForwardBitParser, ForwardByteParser},
     utils::{get_n_bits, int_from_array},
 };
 
@@ -103,22 +103,22 @@ pub struct FrameHeader {
 
 impl FrameHeader {
     pub fn parse<'a>(input: &mut ForwardByteParser<'a>) -> Result<Self> {
-        let header_descriptor = input.u8()?;
+        let mut header = ForwardBitParser::new(input.slice(1)?).unwrap();
 
-        let (dict_id_flag, header_descriptor) = get_n_bits(header_descriptor, 2);
-        let (content_checksum_flag, header_descriptor) = get_n_bits(header_descriptor, 1);
+        let dict_id_flag = header.take(2).unwrap();
+        let content_checksum_flag = header.take(1).unwrap();
 
-        let (reserved, mut header_descriptor) = get_n_bits(header_descriptor, 1);
+        let reserved = header.take(1).unwrap();
         if reserved != 0 {
             return Err(Error::ReservedSet(type_name::<Self>().to_string()));
             // See https://datatracker.ietf.org/doc/html/rfc8878#name-frame-header
         }
 
         // Unused bit, see https://datatracker.ietf.org/doc/html/rfc8878#section-3.1.1.1.1.3
-        header_descriptor >>= 1;
+        header.take(1).unwrap();
 
-        let (single_segment_flag, header_descriptor) = get_n_bits(header_descriptor, 1);
-        let (content_size_flag, _) = get_n_bits(header_descriptor, 2);
+        let single_segment_flag = header.take(1).unwrap();
+        let content_size_flag = header.take(2).unwrap();
         let fcs_field_size;
         if content_size_flag == 0 && single_segment_flag == 0 {
             fcs_field_size = None;
