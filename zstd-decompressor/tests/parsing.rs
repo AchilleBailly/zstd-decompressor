@@ -75,7 +75,7 @@ mod forward_byte_parser_tests {
 
 #[cfg(test)]
 mod forward_bit_parser_tests {
-    use zstd_decompressor::parsing;
+    use zstd_decompressor::parsing::{self, BitParser};
 
     #[test]
     fn is_empty_ok() {

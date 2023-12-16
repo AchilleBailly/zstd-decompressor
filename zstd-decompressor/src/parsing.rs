@@ -4,10 +4,7 @@ use bitbuffer::{BitReadBuffer, LittleEndian, BitError};
 use eyre;
 use thiserror;
 
-use crate::{
-    frame,
-    utils::{int_from_array},
-};
+use crate::{frame, utils::int_from_array};
 
 pub struct ForwardByteParser<'a>(&'a [u8]);
 
@@ -101,15 +98,32 @@ impl<'a> ForwardByteParser<'a> {
     }
 }
 
+pub trait BitParser<'a> {
+    /// Create a new BitParser from the data
+    fn new(data: &'a [u8]) -> Self;
+
+    /// Return the number of readable bits left in the bitparser
+    fn len(&self) -> usize;
+
+    /// Tell if the BitParser has any bit left to be read
+    fn is_empty(&self) -> bool;
+
+    /// Take len bits from the BitParse, consuming them
+    fn take(&mut self, len: usize) -> Result<u64>;
+
+    /// Return the value from the len next bits without consuming them
+    fn peek(&self, len: usize) -> Result<u64>;
+}
+
 pub struct ForwardBitParser<'a> {
     data: BitReadBuffer<'a, LittleEndian>,
     readable: usize,
     pos: usize,
 }
 
-impl<'a> ForwardBitParser<'a> {
+impl<'a> BitParser<'a> for ForwardBitParser<'a> {
     /// Create a new forward bit parser
-    pub fn new(data: &'a [u8]) -> Self {
+    fn new(data: &'a [u8]) -> Self {
         ForwardBitParser {
             data: BitReadBuffer::new(data, LittleEndian),
             readable: data.len() * 8,
@@ -117,17 +131,17 @@ impl<'a> ForwardBitParser<'a> {
         }
     }
 
-    pub fn len(&self) -> usize {
+    fn len(&self) -> usize {
         self.readable
     }
 
     /// True if there are no bits left to read
-    pub fn is_empty(&self) -> bool {
+    fn is_empty(&self) -> bool {
         self.readable == 0
     }
 
     /// Get the given number of bits, or return an error.
-    pub fn take(&mut self, len: usize) -> Result<u64> {
+    fn take(&mut self, len: usize) -> Result<u64> {
         if self.data.bit_len() < len {
             return Err(Error::NotEnoughBits {
                 requested: len,
@@ -148,7 +162,7 @@ impl<'a> ForwardBitParser<'a> {
     }
 
     /// Peek at next len bits without consuming them
-    pub fn peek(&self, len: usize) -> Result<u64> {
+    fn peek(&self, len: usize) -> Result<u64> {
         if self.data.bit_len() < len {
             return Err(Error::NotEnoughBits {
                 requested: len,
