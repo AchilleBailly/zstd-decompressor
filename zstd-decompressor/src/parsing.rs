@@ -1,6 +1,6 @@
 use std::u8;
 
-use bitbuffer::{BitError, BitReadBuffer, LittleEndian};
+use bitbuffer::{BitError, BitReadBuffer, LittleEndian, BigEndian};
 use eyre;
 use thiserror;
 
@@ -94,7 +94,7 @@ impl<'a> ForwardByteParser<'a> {
 
 pub trait BitParser<'a> {
     /// Create a new BitParser from the data
-    fn new(data: &'a [u8]) -> Result<Self>
+    fn new(data: &'a mut [u8]) -> Result<Self>
     where
         Self: Sized;
 
@@ -119,7 +119,7 @@ pub struct ForwardBitParser<'a> {
 
 impl<'a> BitParser<'a> for ForwardBitParser<'a> {
     /// Create a new forward bit parser
-    fn new(data: &'a [u8]) -> Result<Self> {
+    fn new(data: &'a mut [u8]) -> Result<Self> {
         if data.len() == 0 {
             return Err(Error::EmptyInputData);
         }
@@ -180,77 +180,84 @@ impl<'a> BitParser<'a> for ForwardBitParser<'a> {
 }
 
 pub struct BackwardBitParser<'a> {
-    bytes: BitReadBuffer<'a, LittleEndian>,
+    bytes: BitReadBuffer<'a, BigEndian>,
+    readable:usize,
     pos: usize,
-    byte: usize,
+    
 }
 
 impl<'a> BitParser<'a> for BackwardBitParser<'a> {
+
     /// Create a new backward bit parser. The header is skipped automatically or
     /// an error is returned if the initial 1 cannot be found in the first 8 bits.
-    fn new(data: &'a [u8]) -> Result<Self> {
-        let taille = data.len();
-        if taille == 0 {
+    fn new(data: &'a mut [u8]) -> Result<Self> {
+        if data.len() == 0 {
             return Err(Error::EmptyInputData);
+        }
+        let mut i = 0;
+        if data[data.len() - 1] == 1 {
+            data.reverse();
+            return Ok(BackwardBitParser {
+                bytes: BitReadBuffer::new(data, BigEndian),
+                readable: data.len() * 8 - 8,
+                pos: 8,
+            });
         } else {
-            for i in 0..8 {
-                if data[taille - 1] & 1 << 7 - i != 0 {
-                    let res = BackwardBitParser {
-                        bytes: BitReadBuffer::new(&data, LittleEndian),
-                        pos: i + 1,
-                        byte: taille - 1,
-                    };
-                    return Ok(res);
+            while data[data.len() - 1] & 1 << 7 - i == 0 {
+                    i+=1;
+                if i == 7 {
+                    return Err(Error::NullByte);
                 }
             }
-            return Err(Error::NullByte);
+    
+        
+
+            data.reverse();
+            Ok(BackwardBitParser {
+                bytes: BitReadBuffer::new(data, BigEndian),
+                readable: data.len() * 8 - i + 1,
+                pos: i+1,
+            })
         }
     }
 
+
+
     /// True if there are no bits left to read
     fn is_empty(&self) -> bool {
-        self.byte == 0 && self.pos == 8
+        self.readable == 0
     }
 
     /// Get the given number of bits, or return an error.
     fn take(&mut self, len: usize) -> Result<u64> {
-        let mut res = 0x0;
-        let mut nb = len;
-        while nb != 0 {
-            //as we read in a reverse order we will need to do it bit by bit
-            if self.pos == 8 {
-                if self.byte == 0 {
-                    return Err(Error::NullByte);
-                } else {
-                    self.byte -= 1;
-                    self.pos = 0;
-                    res = res
-                        | (self
-                            .bytes
-                            .read_int::<u64>(self.byte * 8 + 7 - self.pos, 1)
-                            .unwrap()
-                            << len - nb);
-                    self.pos += 1;
-                }
-            } else {
-                res += res
-                    | (self
-                        .bytes
-                        .read_int::<u64>(self.byte * 8 + 7 - self.pos, 1)
-                        .unwrap()
-                        << len - nb);
-                self.pos += 1;
-            }
-            nb -= 1;
+        if self.bytes.bit_len() < len {
+            return Err(Error::NotEnoughBits {
+                requested: len,
+                available: self.len(),
+            });
         }
+        if len > 64 {
+            return Err(Error::MaximumReadableBitsExceeded(len));
+        }
+
+
+        // we verified up there the conditions, can not fail
+
+        let res = self.bytes.read_int(self.pos, len).unwrap();
+
+        self.readable -= len;
+        self.pos += len;
+
         Ok(res)
     }
 
+   
+
     fn len(&self) -> usize {
-        self.byte * 8 + 7 - self.pos
+        self.readable
     }
 
-    fn peek(&self, len: usize) -> Result<u64> {
+    fn peek(&self, _len: usize) -> Result<u64> {
         todo!()
     }
 }
