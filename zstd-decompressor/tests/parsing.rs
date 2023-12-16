@@ -174,6 +174,15 @@ mod forward_bit_parser_tests {
         ));
         assert_eq!(48, parser.len());
     }
+
+    #[test]
+    fn new_empty_data_error_nok() {
+        let data = &[];
+
+        let parser = parsing::ForwardBitParser::new(data);
+
+        assert!(matches!(parser, Err(parsing::Error::EmptyInputData)));
+    }
 }
 
 mod backward_bit_parser_tests {
@@ -197,6 +206,24 @@ mod backward_bit_parser_tests {
     }
 
     #[test]
+    fn new_null_byte_error_nok() {
+        let data = &[0];
+
+        let parser = BackwardBitParser::new(data);
+
+        assert!(matches!(parser, Err(parsing::Error::NullByte)));
+    }
+
+    #[test]
+    fn new_empty_data_error_nok() {
+        let data = &[];
+
+        let parser = BackwardBitParser::new(data);
+
+        assert!(matches!(parser, Err(parsing::Error::EmptyInputData)));
+    }
+
+    #[test]
     fn is_empty_ok() {
         let data: &[u8] = &[];
 
@@ -216,7 +243,7 @@ mod backward_bit_parser_tests {
 
     #[test]
     fn len_ok() {
-        let data: &[u8] = &[];
+        let data: &[u8] = &[1];
 
         let parser = BackwardBitParser::new(data).unwrap();
 
@@ -242,17 +269,17 @@ mod backward_bit_parser_tests {
 
         let mut parser = BackwardBitParser::new(data).unwrap();
 
-        assert_eq!(0b1111_1010, parser.take(8).unwrap());
+        assert_eq!(0x1111_1010, parser.take(8).unwrap());
         assert!(parser.is_empty());
     }
 
     #[test]
     fn take_whole_byte_and_half_ok() {
-        let data = &[75, 0b1111_0000, 1];
+        let data = &[0b0000_1111, 0b0111_0101, 1];
 
         let mut parser = BackwardBitParser::new(data).unwrap();
 
-        assert_eq!((15 << 8) + 75, parser.take(12).unwrap());
+        assert_eq!(0b0000_1010_1110, parser.take(12).unwrap());
         assert!(parser.len() == 4);
     }
 
@@ -262,10 +289,10 @@ mod backward_bit_parser_tests {
 
         let mut parser = BackwardBitParser::new(data).unwrap();
 
-        assert_eq!(0b110, parser.take(3).unwrap());
+        assert_eq!(0b011, parser.take(3).unwrap());
         assert_eq!(0, parser.take(3).unwrap());
-        assert_eq!(0b1101, parser.take(4).unwrap());
-        assert_eq!(0b011010, parser.take(6).unwrap());
+        assert_eq!(0b1011, parser.take(4).unwrap());
+        assert_eq!(0b010110, parser.take(6).unwrap());
         assert!(parser.is_empty());
     }
 
