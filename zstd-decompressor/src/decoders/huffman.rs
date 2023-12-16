@@ -1,5 +1,24 @@
-use num_traits::pow;
-use std::fmt::{self, Error, Formatter};
+use num_traits::{pow};
+use std::{fmt::{self, Error, Formatter}};
+use eyre;
+use thiserror;
+
+use crate::parsing::BackwardBitParser;
+
+#[derive(Debug, thiserror::Error)]
+pub enum DecodeError {
+
+
+    #[error{"Error during the Backward parsing"}]
+    ParserError,
+    #[error{"Bad input data"}]
+    InputDataError,
+
+}
+
+pub type Result<T, E = Error> = eyre::Result<T, E>;
+
+
 
 pub enum HuffmanDecoder {
     Absent,
@@ -12,17 +31,19 @@ pub enum HuffmanDecoder {
     },
 }
 
+
+
 struct HuffmanDecoderIterator<'a> {
     noeuds: Vec<(&'a HuffmanDecoder, String)>,
 }
 
 impl Iterator for HuffmanDecoderIterator<'_> {
-    type Item = Vec<(HuffmanDecoder, String)>;
+    type Item = (HuffmanDecoder, String);
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.noeuds.pop() {
             Some((HuffmanDecoder::Symbol { payload: symb }, prefixe)) => {
-                Some(vec![(HuffmanDecoder::Symbol { payload: *symb }, prefixe)])
+                Some((HuffmanDecoder::Symbol { payload: *symb }, prefixe))
                 // Tu recrées un élément, c'est pas super opti, tu peux direct renvoyer l'élément
             }
             Some((
@@ -31,40 +52,33 @@ impl Iterator for HuffmanDecoderIterator<'_> {
                     right: droite,
                 },
                 mut prefixe,
-            )) => {
-                self.noeuds.push((droite, {
+            )) => {let mut old_prefix = prefixe.clone();
+                    self.noeuds.push((droite, {
                     prefixe.push('1');
-                    prefixe.clone()
+                    prefixe
+                    
                 }));
                 self.noeuds.push((gauche, {
-                    prefixe.push('0');
-                    prefixe
+                    old_prefix.push('0');
+                    old_prefix
                 }));
                 self.next()
             }
-            _ => self.next(),
+            _ => None,
         }
     }
 }
 
 impl fmt::Debug for HuffmanDecoder {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
+        let tree_iter = HuffmanDecoderIterator{noeuds : vec![(self, String::from(" "))]};
         let mut t = f.debug_struct("HuffmanDecoder");
-        for noeud in vec![(self, " ")] {
-            match noeud {
-                (HuffmanDecoder::Absent, _) => (),
-                (HuffmanDecoder::Symbol { payload: symb }, prefixe) => {
-                    t.field(prefixe, symb);
-                    ()
-                }
-                (
-                    HuffmanDecoder::Tree {
-                        left: gauche,
-                        right: droite,
-                    },
-                    prefixe,
-                ) => (),
+        for noeud in tree_iter {
+            match noeud.0 {
+                HuffmanDecoder::Symbol { payload } => {t.field( &noeud.1, &payload);},
+                _ => (),
             }
+            
         }
 
         t.finish()
@@ -102,42 +116,68 @@ impl HuffmanDecoder {
     }
 
     pub fn from_number_of_bits(numb_bytes: Vec<u8>) -> HuffmanDecoder {
-        let mut symb: Vec<(i32, u8)> = vec![];
+        let mut symb: Vec<(u8, u8)> = vec![];
         for i in 1..numb_bytes.len() {
             if numb_bytes[i] != 0 {
                 symb.push((i.try_into().unwrap(), numb_bytes[i].try_into().unwrap()))
             }
         }
-        symb.sort();
+        symb.sort_by(|a,b| a.1.cmp(&b.1).then(a.0.cmp(&b.0).reverse()));
         symb.reverse();
         let mut res = HuffmanDecoder::Absent;
-        for i in 1..symb.len() {
-            res.insert(symb[i].0.try_into().unwrap(), symb[i].1);
+        for i in 0..symb.len() {
+            res.insert(symb[i].0, symb[i].1);          
         }
         return res;
     }
 
-    pub fn from_weights(weights: Vec<u8>) -> HuffmanDecoder {
-        let mut sum: i32 = 0;
+    pub fn from_weights(weights: Vec<u8>) -> Result<HuffmanDecoder, > {
+        let mut sum: i32 = 0; //Pour se souvenir de la somme des poids connus
         for i in 1..weights.len() {
             if weights[i] != 0 {
-                sum += pow(2, (weights[i] - 1).into());
+                sum += pow(2, (weights[i] - 1).into()); //On calcule la somme
             }
+            
         }
-        let mut puissance: u8 = sum.ilog2().try_into().unwrap();
+        let mut puissance: u8 = sum.ilog2().try_into().unwrap(); //On calcule la puissance
         //ilog2 arrondit par valeur inférieure
-        puissance += 1;
-        let manquant: u8 = ((pow(2, puissance.try_into().unwrap()) - sum).ilog2() + 1)
+        if pow(2, puissance.into()) < sum {
+            puissance += 1;
+        }
+        
+        let manquant: u8 = ((pow(2, puissance.try_into().unwrap()) - sum).ilog2() + 1) //On calcule la puissance de deux manquante dans les poids
             .try_into()
             .unwrap();
+        
 
         let mut prefixewidths: Vec<u8> = vec![];
-        for i in 1..weights.len() {
-            prefixewidths.push(puissance + 1 - weights[i]);
+        for i in 0..weights.len() {
+            if weights[i] != 0 {
+                prefixewidths.push(puissance + 1 - weights[i]);
+            }
+            else {
+                prefixewidths.push(0);
+            }
         }
         prefixewidths.push(puissance + 1 - manquant);
 
-        return Self::from_number_of_bits(prefixewidths);
+        return Ok(Self::from_number_of_bits(prefixewidths));
+
+        
+    }
+
+    pub fn decode(&self, parser : &mut BackwardBitParser) -> Result<char, DecodeError> {
+            match self{
+                HuffmanDecoder::Symbol { payload } => Ok(*payload as char),
+                HuffmanDecoder::Tree { left, right } => {let bit = parser.take(1);
+                    match bit {
+                    Ok(0) => return left.decode(parser),
+                    Ok(1) => return right.decode(parser),
+                    Err(_) => Err(DecodeError::ParserError),
+                    _ => Err(DecodeError::InputDataError),
+                }}
+                HuffmanDecoder::Absent => panic!(),
+            }
     }
 }
 

@@ -175,3 +175,22 @@ mod forward_bit_parser_tests {
         assert_eq!(48, parser.len());
     }
 }
+
+mod backward_bit_parser_tests {
+    use zstd_decompressor::{decoders::huffman::HuffmanDecoder, parsing::BackwardBitParser};
+
+#[test]
+fn huffman_project_example() {
+    // 0 repeated 65 times, 1, 2
+    let weights: Vec<_> = std::iter::repeat(0).take(65).chain([1, 2]).collect();
+    let decoder = HuffmanDecoder::from_weights(weights).unwrap();
+    let mut parser = BackwardBitParser::new(&[0x97, 0x01]).unwrap();
+    let mut result = String::new();
+    while !parser.is_empty() {
+        let decoded = decoder.decode(&mut parser).unwrap();
+        result.push(decoded as char);  // We know they are valid A, B, or C char
+    }
+    assert_eq!(result, "BABCBB");
+}
+
+}

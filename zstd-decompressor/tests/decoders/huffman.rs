@@ -1,5 +1,5 @@
 mod huffman_test {
-    use zstd_decompressor::decoders::huffman::{self, HuffmanDecoder};
+    use zstd_decompressor::{decoders::huffman::{self, HuffmanDecoder}, parsing::BackwardBitParser};
 
     #[test]
     fn example_tree() {
@@ -45,5 +45,19 @@ mod huffman_test {
         };
         assert!(example.insert(b'B', 2));
         assert!(matches!(&example, _should_be));
+    }
+
+    #[test]
+    fn huffman_project_example() {
+        // 0 repeated 65 times, 1, 2
+        let weights: Vec<_> = std::iter::repeat(0).take(65).chain([1, 2]).collect();
+        let decoder = HuffmanDecoder::from_weights(weights).unwrap();
+        let mut parser = BackwardBitParser::new(&[0x97, 0x01]).unwrap();
+        let mut result = String::new();
+        while !parser.is_empty() {
+            let decoded = decoder.decode(&mut parser).unwrap();
+            result.push(decoded as char);  // We know they are valid A, B, or C char
+        }
+        assert_eq!(result, "BABCBB");
     }
 }
