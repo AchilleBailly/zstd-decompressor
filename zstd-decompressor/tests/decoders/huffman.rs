@@ -19,7 +19,7 @@ mod huffman_test {
     fn insert_example_tree_ok() {
         let mut example = HuffmanDecoder::Absent;
 
-        let _should_be = HuffmanDecoder::Tree {
+        let should_be = HuffmanDecoder::Tree {
             left: Box::new(HuffmanDecoder::Tree {
                 left: Box::new(HuffmanDecoder::Symbol { payload: b'A' }),
                 right: Box::new(HuffmanDecoder::Absent),
@@ -28,9 +28,9 @@ mod huffman_test {
         };
 
         assert!(example.insert(b'A', 2));
-        assert!(matches!(&example, _should_be));
+        assert_eq!(example, should_be);
 
-        let _should_be = HuffmanDecoder::Tree {
+        let should_be = HuffmanDecoder::Tree {
             left: Box::new(HuffmanDecoder::Tree {
                 left: Box::new(HuffmanDecoder::Symbol { payload: b'A' }),
                 right: Box::new(HuffmanDecoder::Symbol { payload: b'C' }),
@@ -38,17 +38,17 @@ mod huffman_test {
             right: Box::new(HuffmanDecoder::Absent),
         };
         assert!(example.insert(b'C', 2));
-        assert!(matches!(&example, _should_be));
+        assert_eq!(example, should_be);
 
-        let _should_be = HuffmanDecoder::Tree {
+        let should_be = HuffmanDecoder::Tree {
             left: Box::new(HuffmanDecoder::Tree {
                 left: Box::new(HuffmanDecoder::Symbol { payload: b'A' }),
                 right: Box::new(HuffmanDecoder::Symbol { payload: b'C' }),
             }),
-            right: Box::new(HuffmanDecoder::Symbol { payload: b'C' }),
+            right: Box::new(HuffmanDecoder::Symbol { payload: b'B' }),
         };
-        assert!(example.insert(b'B', 2));
-        assert!(matches!(&example, _should_be));
+        assert!(example.insert(b'B', 1));
+        assert_eq!(example, should_be);
     }
 
     #[test]

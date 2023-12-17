@@ -94,7 +94,7 @@ pub fn parse_fse_table(input: &mut ForwardBitParser) -> Result<(u8, Vec<i16>)> {
     return Ok((al, distribution));
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct State {
     pub output: u16,
     pub baseline: u16,
@@ -108,7 +108,7 @@ struct TmpState {
     bits_to_read: Option<u8>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct FseTable {
     pub table: Vec<State>,
     pub al: u8,
@@ -253,6 +253,7 @@ impl IndexMut<usize> for FseTable {
     }
 }
 
+#[derive(PartialEq, Debug)]
 pub struct FseDecoder {
     table: FseTable,
     cur_state: usize,

@@ -26,6 +26,7 @@ pub enum DecodeError {
 
 pub type Result<T> = eyre::Result<T, DecodeError>;
 
+#[derive(PartialEq)]
 pub enum HuffmanDecoder {
     Absent,
     Symbol {
@@ -137,6 +138,7 @@ impl HuffmanDecoder {
         }
         weights.push(decoder.symbol() as u8);
         weights.push(decoder.symbol() as u8);
+        // TODO: Verify that we have all weights : https://datatracker.ietf.org/doc/html/rfc8878#section-4.2.1.2
 
         Ok(weights)
     }
