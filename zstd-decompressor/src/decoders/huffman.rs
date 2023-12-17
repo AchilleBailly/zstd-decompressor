@@ -131,6 +131,7 @@ impl HuffmanDecoder {
 
         let mut weights = Vec::new();
         let mut decoder = AlternatingDecoder::new(fse_table);
+        decoder.initialize(&mut bitstream)?;
 
         while decoder.expected_bits() < bitstream.len() {
             weights.push(decoder.symbol() as u8);
@@ -218,9 +219,9 @@ impl HuffmanDecoder {
         return Ok(Self::from_number_of_bits(prefixewidths));
     }
 
-    pub fn decode(&self, parser: &mut BackwardBitParser) -> Result<char> {
+    pub fn decode(&self, parser: &mut BackwardBitParser) -> Result<u8> {
         match self {
-            HuffmanDecoder::Symbol { payload } => Ok(*payload as char),
+            HuffmanDecoder::Symbol { payload } => Ok(*payload),
             HuffmanDecoder::Tree { left, right } => {
                 let bit = parser.take(1)?;
                 match bit {

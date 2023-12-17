@@ -1,4 +1,9 @@
-use crate::{decoding_context::DecodingContext, parsing::ForwardByteParser, utils::int_from_array};
+use crate::{
+    decoding_context::DecodingContext,
+    literals::{self, LiteralsSection},
+    parsing::ForwardByteParser,
+    utils::int_from_array,
+};
 
 use eyre;
 use thiserror;
@@ -11,14 +16,22 @@ pub enum Error {
     ParsingError(#[from] crate::parsing::Error),
     #[error{"Block decoded size exceeds maximum accepted size."}]
     LargeBlockSize,
+    #[error{"Error in literals section: {0}"}]
+    LiteralsSectionError(#[from] literals::Error),
 }
 
 type Result<T> = eyre::Result<T, Error>;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub enum Block<'a> {
     RawBlock(&'a [u8]),
-    RLEBlock { byte: u8, repeat: u32 },
+    RLEBlock {
+        byte: u8,
+        repeat: u32,
+    },
+    CompressedBlock {
+        literals_section: LiteralsSection<'a>,
+    },
 }
 
 impl<'a> Block<'a> {
@@ -34,25 +47,28 @@ impl<'a> Block<'a> {
 
         let block_size = header as usize;
 
-        match block_type {
-            // RawBlock
-            0 => Ok((Block::RawBlock(parser.slice(block_size)?), last_block)),
-            1 => Ok((
-                Block::RLEBlock {
+        Ok((
+            match block_type {
+                // RawBlock
+                0 => Block::RawBlock(parser.slice(block_size)?),
+                1 => Block::RLEBlock {
                     byte: parser.u8()?,
                     repeat: block_size as u32,
                 },
-                last_block,
-            )),
-            2 => unimplemented!(),
-            _ => Err(Error::ReservedBlockType()),
-        }
+                2 => Block::CompressedBlock {
+                    literals_section: LiteralsSection::parse(parser)?,
+                },
+                _ => return Err(Error::ReservedBlockType()),
+            },
+            last_block,
+        ))
     }
 
     pub fn decode(self, context: &mut DecodingContext) -> Result<()> {
         let mut decoded = match self {
             Self::RawBlock(a) => Vec::from(a),
             Self::RLEBlock { byte, repeat } => vec![byte; repeat as usize],
+            Self::CompressedBlock { literals_section } => literals_section.decode(context)?,
         };
 
         if decoded.len() as u64 > context.window_size {

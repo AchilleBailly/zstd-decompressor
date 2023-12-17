@@ -302,9 +302,6 @@ impl<'a> BitDecoder<'a, Error, u16> for FseDecoder {
     }
 
     fn expected_bits(&self) -> usize {
-        if matches!(self.next_symbol, Some(..)) {
-            panic!("Not supposed to read bits right now, retrieve the symbol first.");
-        }
         self.table[self.cur_state].bits_to_read as usize
     }
 

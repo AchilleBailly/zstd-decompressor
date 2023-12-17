@@ -31,7 +31,7 @@ pub enum Error {
     #[error{"Decoded block's size exceeded the annonced content size: "}]
     ContentSizeTooBig(),
     #[error{"Bad Offset value (0)"}]
-    NullOffsetError
+    NullOffsetError,
 }
 
 const MAGIC_ZSTD: u32 = 0xFD2FB528;
@@ -219,10 +219,10 @@ impl<'a> ZStandardFrame<'a> {
         })
     }
 
-    pub fn decode(&self) -> Result<Vec<u8>> {
+    pub fn decode(self) -> Result<Vec<u8>> {
         let mut context = DecodingContext::new(self.header.window_size)?;
 
-        for block in &self.blocks[..] {
+        for block in self.blocks.into_iter() {
             block.decode(&mut context)?; // Copying block content, TODO: check if possible other way
         }
 

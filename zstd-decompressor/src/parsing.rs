@@ -90,6 +90,22 @@ impl<'a> ForwardByteParser<'a> {
 
         Ok(res)
     }
+
+    /// Consume and returns a u32 in little-endian format
+    pub fn le_u16(&mut self) -> Result<u16> {
+        if self.len() < 2 {
+            return Err(Error::NotEnoughBytes {
+                requested: 2,
+                available: self.len(),
+            });
+        }
+
+        let (res_array, rest) = self.0.split_at(2);
+        self.0 = rest;
+        let res: u16 = int_from_array(res_array);
+
+        Ok(res)
+    }
 }
 
 pub trait BitParser<'a> {

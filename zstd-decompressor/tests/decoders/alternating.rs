@@ -12,9 +12,8 @@ mod alternating_tests {
         parsing::ForwardBitParser,
     };
 
-    #[test]
-    fn new_test_ok() {
-        let table = FseTable {
+    fn get_table() -> FseTable {
+        FseTable {
             table: vec![
                 State {
                     output: 0,
@@ -38,8 +37,12 @@ mod alternating_tests {
                 },
             ],
             al: 2,
-        };
+        }
+    }
 
+    #[test]
+    fn new_test_ok() {
+        let table = get_table();
         let table_bis = table.clone();
 
         let alternating = alternating::AlternatingDecoder::new(table);
@@ -54,31 +57,7 @@ mod alternating_tests {
 
     #[test]
     fn alternating_initialize_test() {
-        let table = FseTable {
-            table: vec![
-                State {
-                    output: 0,
-                    baseline: 1,
-                    bits_to_read: 0,
-                },
-                State {
-                    output: 3,
-                    baseline: 2,
-                    bits_to_read: 1,
-                },
-                State {
-                    output: 1,
-                    baseline: 0,
-                    bits_to_read: 1,
-                },
-                State {
-                    output: 0,
-                    baseline: 2,
-                    bits_to_read: 1,
-                },
-            ],
-            al: 2,
-        };
+        let table = get_table();
 
         let mut alternating = alternating::AlternatingDecoder::new(table);
         let data: &[u8; 3] = &[0b00111111, 0b11000000, 0b1100];
@@ -89,9 +68,29 @@ mod alternating_tests {
         ];
 
         for &v in good_values {
-            println!("{:?}", v);
             assert_eq!(v, alternating.symbol());
+            println!("{:?}", alternating.expected_bits());
             alternating.update_bits(&mut parser).unwrap();
         }
+        println!("{}", parser.len());
+    }
+
+    #[test]
+    fn ending_get_both_symbols_ok() {
+        let table = get_table();
+
+        let mut alternating = alternating::AlternatingDecoder::new(table);
+        let data: &[u8; 3] = &[0b00111111, 0b11000000, 0b1100];
+        let mut parser = ForwardBitParser::new(data).unwrap();
+        alternating.initialize(&mut parser).unwrap();
+
+        while alternating.expected_bits() <= parser.len() {
+            alternating.symbol();
+            alternating.update_bits(&mut parser).unwrap();
+        }
+
+        // If we have exhausted all bits in the bitstream, we can still read the symbols that are stored in the decoder
+        alternating.symbol();
+        alternating.symbol();
     }
 }
