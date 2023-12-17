@@ -117,6 +117,15 @@ pub struct ForwardBitParser<'a> {
     pos: usize,
 }
 
+impl<'a> ForwardBitParser<'a> {
+    /// Will return the number of bytes that were read, including the one being read it it was not fully read
+    pub fn bytes_read(&self) -> usize {
+        let partially_consumed = if self.pos % 8 > 0 { 1 } else { 0 };
+
+        self.pos / 8 + partially_consumed
+    }
+}
+
 impl<'a> BitParser<'a> for ForwardBitParser<'a> {
     /// Create a new forward bit parser
     fn new(data: &'a [u8]) -> Result<Self> {

@@ -18,7 +18,7 @@ pub struct AlternatingDecoder {
 }
 
 impl AlternatingDecoder {
-    fn new(table: FseTable) -> Self {
+    pub fn new(table: FseTable) -> Self {
         let bis_table = table.clone();
         AlternatingDecoder {
             first_decoder: FseDecoder::from(table),

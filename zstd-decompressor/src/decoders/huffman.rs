@@ -1,9 +1,14 @@
 use eyre;
 use num_traits::pow;
-use std::fmt::{self, Error, Formatter};
+use std::fmt::{self, Formatter};
 use thiserror;
 
-use crate::parsing::{BackwardBitParser, BitParser};
+use crate::{
+    decoders::{alternating::AlternatingDecoder, fse::FseTable, BitDecoder},
+    parsing::{self, BackwardBitParser, BitParser, ForwardBitParser, ForwardByteParser},
+};
+
+use super::{alternating, fse};
 
 #[derive(Debug, thiserror::Error)]
 pub enum DecodeError {
@@ -11,9 +16,15 @@ pub enum DecodeError {
     ParserError,
     #[error{"Bad input data"}]
     InputDataError,
+    #[error{"Parsing error:"}]
+    ParsingError(#[from] parsing::Error),
+    #[error{"Error while decoding FSE table: {0}"}]
+    FseParsingError(#[from] fse::Error),
+    #[error{"Error while decoding: {0}"}]
+    FseDecoderError(#[from] alternating::Error),
 }
 
-pub type Result<T, E = Error> = eyre::Result<T, E>;
+pub type Result<T> = eyre::Result<T, DecodeError>;
 
 pub enum HuffmanDecoder {
     Absent,
@@ -63,7 +74,7 @@ impl Iterator for HuffmanDecoderIterator<'_> {
 }
 
 impl fmt::Debug for HuffmanDecoder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let tree_iter = HuffmanDecoderIterator {
             noeuds: vec![(self, String::from(" "))],
         };
@@ -82,6 +93,52 @@ impl fmt::Debug for HuffmanDecoder {
 }
 
 impl HuffmanDecoder {
+    pub fn parse(input: &mut ForwardByteParser) -> Result<Self> {
+        let header = input.u8()?;
+        let weights = if header < 128 {
+            Self::parse_fse(input, header)?
+        } else {
+            Self::parse_direct(input, header as usize - 127)?
+        };
+        Self::from_weights(weights)
+    }
+
+    fn parse_direct(input: &mut ForwardByteParser, num_weights: usize) -> Result<Vec<u8>> {
+        let data = input.slice(num_weights / 2 + num_weights % 2)?; // 2 weights per byte
+
+        let mut res = vec![];
+        let mut parser = ForwardBitParser::new(data).unwrap();
+        while !parser.is_empty() {
+            let tmp = parser.take(4).unwrap() as u8;
+            res.push(parser.take(4).unwrap() as u8);
+            res.push(tmp);
+        }
+
+        Ok(res)
+    }
+
+    fn parse_fse(input: &mut ForwardByteParser, compressed_size: u8) -> Result<Vec<u8>> {
+        let data = input.slice(compressed_size as usize)?;
+
+        let mut parser = ForwardBitParser::new(data).unwrap();
+
+        let fse_table = FseTable::parse(&mut parser)?;
+
+        let mut bitstream = ForwardBitParser::new(&data[parser.bytes_read()..]).unwrap();
+
+        let mut weights = Vec::new();
+        let mut decoder = AlternatingDecoder::new(fse_table);
+
+        while decoder.expected_bits() < bitstream.len() {
+            weights.push(decoder.symbol() as u8);
+            decoder.update_bits(&mut bitstream)?;
+        }
+        weights.push(decoder.symbol() as u8);
+        weights.push(decoder.symbol() as u8);
+
+        Ok(weights)
+    }
+
     pub fn insert(&mut self, symbol: u8, width: u8) -> bool {
         if width == 0 {
             match self {
@@ -157,16 +214,15 @@ impl HuffmanDecoder {
         return Ok(Self::from_number_of_bits(prefixewidths));
     }
 
-    pub fn decode(&self, parser: &mut BackwardBitParser) -> Result<char, DecodeError> {
+    pub fn decode(&self, parser: &mut BackwardBitParser) -> Result<char> {
         match self {
             HuffmanDecoder::Symbol { payload } => Ok(*payload as char),
             HuffmanDecoder::Tree { left, right } => {
-                let bit = parser.take(1);
+                let bit = parser.take(1)?;
                 match bit {
-                    Ok(0) => return left.decode(parser),
-                    Ok(1) => return right.decode(parser),
-                    Err(_) => Err(DecodeError::ParserError),
-                    _ => Err(DecodeError::InputDataError),
+                    0 => return left.decode(parser),
+                    1 => return right.decode(parser),
+                    _ => unreachable!(),
                 }
             }
             HuffmanDecoder::Absent => panic!(),
