@@ -114,6 +114,8 @@ impl HuffmanDecoder {
             res.push(tmp);
         }
 
+        res.truncate(num_weights);
+
         Ok(res)
     }
 
