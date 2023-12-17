@@ -78,10 +78,20 @@ mod forward_bit_parser_tests {
     use zstd_decompressor::parsing::{self, BitParser};
 
     #[test]
-    fn is_empty_ok() {
+    fn new_empty_data_nok() {
         let data = [];
 
-        let parser = parsing::ForwardBitParser::new(&data).unwrap();
+        let res = parsing::ForwardBitParser::new(&data);
+
+        assert!(matches!(res, Err(parsing::Error::EmptyInputData)));
+    }
+
+    #[test]
+    fn is_empty_ok() {
+        let data = [1];
+
+        let mut parser = parsing::ForwardBitParser::new(&data).unwrap();
+        let _ = parser.take(8).unwrap();
 
         assert!(parser.is_empty());
     }
@@ -97,9 +107,10 @@ mod forward_bit_parser_tests {
 
     #[test]
     fn len_ok() {
-        let data = [];
+        let data = [1];
 
-        let parser = parsing::ForwardBitParser::new(&data).unwrap();
+        let mut parser = parsing::ForwardBitParser::new(&data).unwrap();
+        let _ = parser.take(8).unwrap();
 
         assert!(parser.len() == 0);
     }
