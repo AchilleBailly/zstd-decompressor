@@ -30,6 +30,8 @@ pub enum Error {
     WindowSizeTooBig { max: u64, got: u64 },
     #[error{"Decoded block's size exceeded the annonced content size: "}]
     ContentSizeTooBig(),
+    #[error{"Bad Offset value (0)"}]
+    NullOffsetError
 }
 
 const MAGIC_ZSTD: u32 = 0xFD2FB528;
