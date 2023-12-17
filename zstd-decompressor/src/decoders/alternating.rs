@@ -12,13 +12,13 @@ pub enum Error {
 }
 
 pub struct AlternatingDecoder {
-    first_decoder: FseDecoder,
-    second_decoder: FseDecoder,
-    last_updated_is_first: bool,
+    pub first_decoder: FseDecoder,
+    pub second_decoder: FseDecoder,
+    pub last_updated_is_first: bool,
 }
 
 impl AlternatingDecoder {
-    fn new(table: FseTable) -> Self {
+    pub fn new(table: FseTable) -> Self {
         let bis_table = table.clone();
         AlternatingDecoder {
             first_decoder: FseDecoder::from(table),
