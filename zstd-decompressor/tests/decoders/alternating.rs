@@ -2,11 +2,19 @@
 
 mod alternating_tests {
 
-    use zstd_decompressor::{decoders::{fse::{self, FseTable, State, FseDecoder}, BitDecoder}, decoders::alternating, parsing::BitParser, parsing::ForwardBitParser};
+    use zstd_decompressor::{
+        decoders::alternating,
+        decoders::{
+            fse::{self, FseDecoder, FseTable, State},
+            BitDecoder,
+        },
+        parsing::BitParser,
+        parsing::ForwardBitParser,
+    };
 
     #[test]
     fn new_test_ok() {
-        let table =FseTable {
+        let table = FseTable {
             table: vec![
                 State {
                     output: 0,
@@ -35,20 +43,18 @@ mod alternating_tests {
         let table_bis = table.clone();
 
         let alternating = alternating::AlternatingDecoder::new(table);
-        
-        
 
         let decodeur = FseDecoder::from(table_bis);
-        assert!(matches!(alternating.first_decoder, decodeur));
-        assert!(matches!(alternating.second_decoder, decodeurs));
+        let first = alternating.first_decoder;
+        let second = alternating.second_decoder;
+        assert_eq!(second, decodeur);
+        assert_eq!(first, decodeur);
         assert!(!alternating.last_updated_is_first);
-
     }
-
 
     #[test]
     fn alternating_initialize_test() {
-        let table =FseTable {
+        let table = FseTable {
             table: vec![
                 State {
                     output: 0,
@@ -78,18 +84,14 @@ mod alternating_tests {
         let data: &[u8; 3] = &[0b00111111, 0b11000000, 0b1100];
         let mut parser = ForwardBitParser::new(data).unwrap();
         alternating.initialize(&mut parser).unwrap();
-        let good_values = &[0, 0, 0, 0, 1, 1, 0, 0, 3, 3, 1, 1, 0, 0, 3, 3, 0, 0, 1, 1, 3, 3];
+        let good_values = &[
+            0, 0, 0, 0, 1, 1, 0, 0, 3, 3, 1, 1, 0, 0, 3, 3, 0, 0, 1, 1, 3, 3,
+        ];
 
         for &v in good_values {
             println!("{:?}", v);
             assert_eq!(v, alternating.symbol());
             alternating.update_bits(&mut parser).unwrap();
-            
         }
     }
-
-
-
-
-
 }
