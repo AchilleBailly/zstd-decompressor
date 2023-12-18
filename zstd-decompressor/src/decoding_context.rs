@@ -1,3 +1,5 @@
+use twox_hash::XxHash64;
+
 use crate::{
     decoders::huffman::HuffmanDecoder, frame::MAX_WIN_SIZE, sequences::SymbolCompressionMode,
 };
@@ -18,6 +20,7 @@ pub struct DecodingContext {
     pub ll_repeat_decoder: Option<SymbolCompressionMode>,
     pub cmov_repeat_decoder: Option<SymbolCompressionMode>,
     pub ml_repeat_decoder: Option<SymbolCompressionMode>,
+    pub checksum: Option<XxHash64>,
 }
 
 impl DecodingContext {
@@ -37,6 +40,7 @@ impl DecodingContext {
             ll_repeat_decoder: None,
             cmov_repeat_decoder: None,
             ml_repeat_decoder: None,
+            checksum: None,
         })
     }
 
