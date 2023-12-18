@@ -26,6 +26,8 @@ pub enum Error {
     UnregisteredReservedDictID(u64),
     #[error{"Expected checksum from header but is not present"}]
     MissingChecksum(#[source] parsing::Error),
+    #[error{"Bad checksum, data was lost or modified"}]
+    BadCheksum,
     #[error{"Window size is too big: max {max} but got {got}"}]
     WindowSizeTooBig { max: u64, got: u64 },
     #[error{"Decoded block's size exceeded the annonced content size: "}]
@@ -221,12 +223,29 @@ impl<'a> ZStandardFrame<'a> {
 
     pub fn decode(self) -> Result<Vec<u8>> {
         let mut context: DecodingContext = DecodingContext::new(self.header.window_size)?;
+        if self.header.content_checksum_flag {
+            context.checksum = Some(with_seed(0));
+        }
 
         for block in self.blocks.into_iter() {
             block.decode(&mut context)?; // Copying block content, TODO: check if possible other way
-        }
+            match context.checksum {
+                Some(hash) => context.checksum.unwrap().write(context.decoded),  //Building the hash by adding decoded data
+                None => (),
+            }
 
-        Ok(context.decoded)
+        if self.header.content_checksum_flag {
+            if (context.checksum.unwrap().finish() as u32 == self.checksum.unwrap()){
+                Ok(context.decoded)
+            }
+            else {
+                Err(BadChecksum)
+            }
+        }
+        else {
+            Ok(context.decoded)
+        }
+        
     }
 
     pub fn header(&self) -> &FrameHeader {
@@ -277,4 +296,5 @@ mod parse_window_descriptor_tests {
             FrameHeader::parse_window_descriptor(&mut parser).unwrap()
         );
     }
+}
 }

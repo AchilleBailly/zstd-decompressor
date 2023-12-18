@@ -2,6 +2,7 @@ use crate::{
     decoders::huffman::HuffmanDecoder,
     frame::{self, Error, MAX_WIN_SIZE},
     sequences::SymbolCompressionMode,
+    xxh3::Hash64,
 };
 
 pub struct DecodingContext {
@@ -10,6 +11,7 @@ pub struct DecodingContext {
     pub offsets: [usize; 3],
     pub window_size: u64,
     pub repeat_decoder: Option<SymbolCompressionMode>,
+    pub checksum : Option<XxHash64>,
 }
 
 impl DecodingContext {
@@ -27,6 +29,7 @@ impl DecodingContext {
             offsets: [1, 4, 8],
             window_size: window_size,
             repeat_decoder: None,
+            checksum: None,
         })
     }
 
