@@ -75,7 +75,7 @@ mod forward_byte_parser_tests {
 
 #[cfg(test)]
 mod forward_bit_parser_tests {
-    use zstd_decompressor::parsing::{self, BitParser};
+    use zstd_decompressor::parsing;
 
     #[test]
     fn new_empty_data_nok() {
@@ -199,7 +199,7 @@ mod forward_bit_parser_tests {
 mod backward_bit_parser_tests {
     use zstd_decompressor::{
         decoders::huffman::HuffmanDecoder,
-        parsing::{self, BackwardBitParser, BitParser},
+        parsing::{self, BackwardBitParser},
     };
 
     #[test]
@@ -266,12 +266,20 @@ mod backward_bit_parser_tests {
     fn len_ok2() {
         let data = [0x5f, 1];
         // 1001_1111__0000_0001 -> in natural order : 0000_0001__0101_1111
-        // LitlleEndian : -> 1111_1001__1000_0000 ->
-        // BigEndian (0xbf): -> 1011_1111 -> 0b1111_1101
 
         let parser = BackwardBitParser::new(&data).unwrap();
 
         assert!(parser.len() == 8);
+    }
+
+    #[test]
+    fn len_ok3() {
+        let data = [0x5f, 0xff];
+        // 1001_1111__0000_0001 -> in natural order : 0000_0001__0101_1111
+
+        let parser = BackwardBitParser::new(&data).unwrap();
+
+        assert!(parser.len() == 15);
     }
 
     #[test]
@@ -335,5 +343,17 @@ mod backward_bit_parser_tests {
             })
         ));
         assert_eq!(40, parser.len());
+    }
+
+    #[test]
+    fn weird_bug_ok_should_not_panic() {
+        // It looks like the BitReadBuffer crashes when you ask it to read 0 bit and
+        // it has just finished reading a whole byte, meaning it has to start a new byte
+        for i in 0..15 {
+            let data = &[0b10100000, 0b01111000];
+            let mut parser = BackwardBitParser::new(data).unwrap();
+            let _ = parser.take(i);
+            let _ = parser.take(0);
+        }
     }
 }

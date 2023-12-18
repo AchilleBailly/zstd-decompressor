@@ -1,13 +1,15 @@
 use crate::{
     decoders::huffman::HuffmanDecoder,
     frame::{self, Error, MAX_WIN_SIZE},
+    sequences::SymbolCompressionMode,
 };
 
 pub struct DecodingContext {
     pub huffman_decoder: Option<HuffmanDecoder>,
     pub decoded: Vec<u8>,
-    pub offsets: Vec<usize>,
+    pub offsets: [usize; 3],
     pub window_size: u64,
+    pub repeat_decoder: Option<SymbolCompressionMode>,
 }
 
 impl DecodingContext {
@@ -22,8 +24,9 @@ impl DecodingContext {
         Ok(DecodingContext {
             huffman_decoder: None,
             decoded: Vec::new(),
-            offsets: vec![1, 4, 8],
+            offsets: [1, 4, 8],
             window_size: window_size,
+            repeat_decoder: None,
         })
     }
 
@@ -74,16 +77,29 @@ impl DecodingContext {
         sequences: Vec<(usize, usize, usize)>,
         literals: &[u8],
     ) -> Result<(), Error> {
-        // let mut res = String::new();
-        // let mut pos_literals = 0;
-        // for seq in sequences {
-        //     res.push(literals[pos_literals..seq.0]);
-        //     pos_literals += seq.0;
-        //     for i in 0..seq.0 {
-        //         res.push(res[res.len()-seq.0] as char)
-        //     }
-        //     self.decode_offset(seq.1, literals.len());
-        // }
+        let mut literals_pos = 0;
+        for (literals_copy, decoded_offset, n_offset_copy) in sequences.into_iter() {
+            if decoded_offset == 0 {
+                return Err(Error::NullOffsetError);
+            }
+
+            for _ in 0..literals_copy {
+                self.decoded.push(literals[literals_pos]);
+                literals_pos += 1;
+            }
+
+            for _ in 0..n_offset_copy {
+                self.decoded
+                    .push(self.decoded[self.decoded.len() - decoded_offset]);
+            }
+
+            self.decode_offset(decoded_offset, literals.len() - literals_pos)?;
+        }
+
+        for literals_pos in literals_pos..literals.len() {
+            self.decoded.push(literals[literals_pos]);
+        }
+
         Ok(())
     }
 }

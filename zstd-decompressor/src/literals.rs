@@ -1,7 +1,7 @@
 use crate::{
-    decoders::huffman::{self, HuffmanDecoder},
+    decoders::{self, huffman::HuffmanDecoder},
     decoding_context::DecodingContext,
-    parsing::{self, BackwardBitParser, BitParser, ForwardBitParser, ForwardByteParser},
+    parsing::{self, BackwardBitParser, ForwardBitParser, ForwardByteParser},
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -9,7 +9,7 @@ pub enum Error {
     #[error{"Parsing Error: {0}"}]
     ParsingError(#[from] parsing::Error),
     #[error{"Error while building tree: {0}"}]
-    HuffmanTree(#[from] huffman::DecodeError),
+    HuffmanTree(#[from] decoders::Error),
     #[error{"No huffman decoder available"}]
     HuffmanDecoderMissing,
     #[error{"Corrupted literals section: sum of streams sizes is too big"}]

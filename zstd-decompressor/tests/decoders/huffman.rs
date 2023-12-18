@@ -1,7 +1,6 @@
 mod huffman_test {
     use zstd_decompressor::{
         decoders::huffman::{self, HuffmanDecoder},
-        parsing::BitParser,
         parsing::{BackwardBitParser, ForwardByteParser},
     };
 

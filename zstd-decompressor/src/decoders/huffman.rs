@@ -1,30 +1,12 @@
-use eyre;
 use num_traits::pow;
 use std::fmt::{self, Formatter};
-use thiserror;
 
 use crate::{
     decoders::{alternating::AlternatingDecoder, fse::FseTable, BitDecoder},
-    parsing::{self, BackwardBitParser, BitParser, ForwardBitParser, ForwardByteParser},
+    parsing::{BackwardBitParser, ForwardBitParser, ForwardByteParser},
 };
 
-use super::{alternating, fse};
-
-#[derive(Debug, thiserror::Error)]
-pub enum DecodeError {
-    #[error{"Error during the Backward parsing"}]
-    ParserError,
-    #[error{"Bad input data"}]
-    InputDataError,
-    #[error{"Parsing error:"}]
-    ParsingError(#[from] parsing::Error),
-    #[error{"Error while decoding FSE table: {0}"}]
-    FseParsingError(#[from] fse::Error),
-    #[error{"Error while decoding: {0}"}]
-    FseDecoderError(#[from] alternating::Error),
-}
-
-pub type Result<T> = eyre::Result<T, DecodeError>;
+use super::Result;
 
 #[derive(PartialEq)]
 pub enum HuffmanDecoder {
@@ -127,7 +109,7 @@ impl HuffmanDecoder {
 
         let fse_table = FseTable::parse(&mut parser)?;
 
-        let mut bitstream = ForwardBitParser::new(&data[parser.bytes_read()..]).unwrap();
+        let mut bitstream = BackwardBitParser::new(&data[parser.bytes_read()..]).unwrap();
 
         let mut weights = Vec::new();
         let mut decoder = AlternatingDecoder::new(fse_table);

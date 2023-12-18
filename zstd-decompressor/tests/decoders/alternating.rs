@@ -5,11 +5,10 @@ mod alternating_tests {
     use zstd_decompressor::{
         decoders::alternating,
         decoders::{
-            fse::{self, FseDecoder, FseTable, State},
+            fse::{FseDecoder, FseTable, State},
             BitDecoder,
         },
-        parsing::BitParser,
-        parsing::ForwardBitParser,
+        parsing::BackwardBitParser,
     };
 
     fn get_table() -> FseTable {
@@ -47,7 +46,7 @@ mod alternating_tests {
 
         let alternating = alternating::AlternatingDecoder::new(table);
 
-        let decodeur = FseDecoder::from(table_bis);
+        let decodeur = FseDecoder::new_from_table(table_bis);
         let first = alternating.first_decoder;
         let second = alternating.second_decoder;
         assert_eq!(second, decodeur);
@@ -60,8 +59,9 @@ mod alternating_tests {
         let table = get_table();
 
         let mut alternating = alternating::AlternatingDecoder::new(table);
-        let data: &[u8; 3] = &[0b00111111, 0b11000000, 0b1100];
-        let mut parser = ForwardBitParser::new(data).unwrap();
+        // let data: &[u8; 3] = &[0b00111111, 0b11000000, 0b1100];
+        let data: &[u8; 3] = &[0b1001_1_000, 0b0000_0001, 0b1111_1110];
+        let mut parser = BackwardBitParser::new(data).unwrap();
         alternating.initialize(&mut parser).unwrap();
         let good_values = &[
             0, 0, 0, 0, 1, 1, 0, 0, 3, 3, 1, 1, 0, 0, 3, 3, 0, 0, 1, 1, 3, 3,
@@ -80,8 +80,9 @@ mod alternating_tests {
         let table = get_table();
 
         let mut alternating = alternating::AlternatingDecoder::new(table);
-        let data: &[u8; 3] = &[0b00111111, 0b11000000, 0b1100];
-        let mut parser = ForwardBitParser::new(data).unwrap();
+        // let data: &[u8; 3] = &[0b0011_1111, 0b1100_0000, 0b1100];
+        let data: &[u8; 3] = &[0b1001_1000, 0b0000_0001, 0b1111_1110];
+        let mut parser = BackwardBitParser::new(data).unwrap();
         alternating.initialize(&mut parser).unwrap();
 
         while alternating.expected_bits() <= parser.len() {

@@ -3,7 +3,7 @@ use std::any::type_name;
 use crate::{
     block::Block,
     decoding_context::DecodingContext,
-    parsing::{self, BitParser, ForwardBitParser, ForwardByteParser},
+    parsing::{self, ForwardBitParser, ForwardByteParser},
     utils::{get_n_bits, int_from_array},
 };
 
@@ -220,7 +220,7 @@ impl<'a> ZStandardFrame<'a> {
     }
 
     pub fn decode(self) -> Result<Vec<u8>> {
-        let mut context = DecodingContext::new(self.header.window_size)?;
+        let mut context: DecodingContext = DecodingContext::new(self.header.window_size)?;
 
         for block in self.blocks.into_iter() {
             block.decode(&mut context)?; // Copying block content, TODO: check if possible other way

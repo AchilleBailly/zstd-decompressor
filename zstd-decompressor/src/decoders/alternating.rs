@@ -1,15 +1,9 @@
+use crate::parsing::BackwardBitParser;
+
 use super::{
-    fse::{self, FseDecoder, FseTable},
-    BitDecoder,
+    fse::{FseDecoder, FseTable},
+    BitDecoder, Result,
 };
-
-use std::fmt::Debug;
-
-#[derive(Debug, thiserror::Error)]
-pub enum Error {
-    #[error{"Error {0} from the FseTable"}]
-    FseError(#[from] fse::Error),
-}
 
 pub struct AlternatingDecoder {
     pub first_decoder: FseDecoder,
@@ -22,19 +16,16 @@ impl AlternatingDecoder {
     pub fn new(table: FseTable) -> Self {
         let bis_table = table.clone();
         AlternatingDecoder {
-            first_decoder: FseDecoder::from(table),
-            second_decoder: FseDecoder::from(bis_table),
+            first_decoder: FseDecoder::new_from_table(table),
+            second_decoder: FseDecoder::new_from_table(bis_table),
             last_updated_is_first: false,
             last_read_is_first: false,
         }
     }
 }
 
-impl<'a> BitDecoder<'a, Error, u16> for AlternatingDecoder {
-    fn initialize(
-        &mut self,
-        bitstream: &mut impl crate::parsing::BitParser<'a>,
-    ) -> Result<(), Error> {
+impl<'a> BitDecoder<u16> for AlternatingDecoder {
+    fn initialize(&mut self, bitstream: &mut BackwardBitParser) -> Result<()> {
         self.first_decoder.initialize(bitstream)?;
         self.second_decoder.initialize(bitstream)?;
         self.last_updated_is_first = false;
@@ -60,10 +51,7 @@ impl<'a> BitDecoder<'a, Error, u16> for AlternatingDecoder {
         }
     }
 
-    fn update_bits(
-        &mut self,
-        bitstream: &mut impl crate::parsing::BitParser<'a>,
-    ) -> Result<bool, Error> {
+    fn update_bits(&mut self, bitstream: &mut BackwardBitParser) -> Result<bool> {
         if self.last_updated_is_first {
             self.last_updated_is_first = false;
             Ok(self.second_decoder.update_bits(bitstream)?)

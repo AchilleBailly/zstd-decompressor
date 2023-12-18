@@ -1,5 +1,5 @@
 use crate::{
-    parsing::{self, BitParser, ForwardBitParser},
+    parsing::{BackwardBitParser, ForwardBitParser},
     utils::{discrete_log2, min_bits_required},
 };
 use std::{
@@ -8,19 +8,7 @@ use std::{
     ops::{Index, IndexMut},
 };
 
-use super::BitDecoder;
-
-#[derive(Debug, thiserror::Error)]
-pub enum Error {
-    #[error{"Parsing error: {0}"}]
-    ParsingError(#[from] parsing::Error),
-    #[error{"FSE table error: accuracy log {0} is too large."}]
-    LargeAccuracyLog(u8),
-    #[error{"FSE table is corrupted."}]
-    CorruptedTable(),
-}
-
-type Result<T> = eyre::Result<T, Error>;
+use super::{BitDecoder, Error, Result};
 
 const MAX_AL: u8 = 9;
 const MAX_SYMBOL: usize = 256;
@@ -253,7 +241,7 @@ impl IndexMut<usize> for FseTable {
     }
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
 pub struct FseDecoder {
     table: FseTable,
     cur_state: usize,
@@ -276,7 +264,7 @@ impl FseDecoder {
         })
     }
 
-    pub fn from(table: FseTable) -> Self {
+    pub fn new_from_table(table: FseTable) -> Self {
         let cur_state = 0;
         let next_symbol = None;
         let next_symbol_s = 0;
@@ -288,10 +276,23 @@ impl FseDecoder {
             next_symbol,
         }
     }
+
+    // pub fn from(table: FseTable) -> Self {
+    //     let cur_state = 0;
+    //     let next_symbol = None;
+    //     let next_symbol_s = 0;
+
+    //     FseDecoder {
+    //         table,
+    //         cur_state,
+    //         next_symbol_s,
+    //         next_symbol,
+    //     }
+    // }
 }
 
-impl<'a> BitDecoder<'a, Error, u16> for FseDecoder {
-    fn initialize(&mut self, bitstream: &mut impl BitParser<'a>) -> Result<()> {
+impl<'a> BitDecoder<u16> for FseDecoder {
+    fn initialize(&mut self, bitstream: &mut BackwardBitParser) -> Result<()> {
         let state = bitstream.take(self.table.al() as usize)? as usize;
 
         self.next_symbol = Some(self.table[state].output);
@@ -316,7 +317,7 @@ impl<'a> BitDecoder<'a, Error, u16> for FseDecoder {
         res
     }
 
-    fn update_bits(&mut self, bitstream: &mut impl BitParser<'a>) -> Result<bool> {
+    fn update_bits(&mut self, bitstream: &mut BackwardBitParser) -> Result<bool> {
         if matches!(self.next_symbol, Some(..)) {
             panic!("Attempting to update without reading the symbol first.");
         }

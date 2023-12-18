@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod fse_decoder_tests {
 
-    use zstd_decompressor::{decoders::fse, parsing::BitParser, parsing::ForwardBitParser};
+    use zstd_decompressor::{decoders::fse, parsing::ForwardBitParser};
 
     #[test]
     fn parse_fse_table_test_ok() {
@@ -65,7 +65,7 @@ mod fes_decoder_tests {
             fse::{FseDecoder, FseTable, State},
             BitDecoder,
         },
-        parsing::{BitParser, ForwardBitParser},
+        parsing::BackwardBitParser,
     };
 
     #[test]
@@ -96,16 +96,19 @@ mod fes_decoder_tests {
             al: 2,
         };
 
-        let data: &[u8; 2] = &[0b10000111, 0b10];
-        let mut parser = ForwardBitParser::new(data).unwrap();
+        // let data: &[u8; 2] = &[0b10000111, 0b10];
+        // let data = &[0b01000000, 0b11100001, 1];
+        let data = &[0b10100000, 0b11110000];
+        let mut parser = BackwardBitParser::new(data).unwrap();
 
-        let mut decoder = FseDecoder::from(table);
+        let mut decoder = FseDecoder::new_from_table(table);
         decoder.initialize(&mut parser).unwrap();
 
         let good_values = &[0, 0, 1, 0, 3, 1, 0, 3, 0, 1, 3];
 
         for &v in good_values {
-            assert_eq!(v, decoder.symbol());
+            assert_eq!(dbg!(v), decoder.symbol());
+
             decoder.update_bits(&mut parser).unwrap();
         }
     }

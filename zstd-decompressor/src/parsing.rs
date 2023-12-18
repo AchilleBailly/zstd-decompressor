@@ -108,25 +108,6 @@ impl<'a> ForwardByteParser<'a> {
     }
 }
 
-pub trait BitParser<'a> {
-    /// Create a new BitParser from the data
-    fn new(data: &'a [u8]) -> Result<Self>
-    where
-        Self: Sized;
-
-    /// Return the number of readable bits left in the bitparser
-    fn len(&self) -> usize;
-
-    /// Tell if the BitParser has any bit left to be read
-    fn is_empty(&self) -> bool;
-
-    /// Take len bits from the BitParse, consuming them
-    fn take(&mut self, len: usize) -> Result<u64>;
-
-    /// Return the value from the len next bits without consuming them
-    fn peek(&self, len: usize) -> Result<u64>;
-}
-
 pub struct ForwardBitParser<'a> {
     data: BitReadBuffer<'a, LittleEndian>,
     readable: usize,
@@ -142,9 +123,9 @@ impl<'a> ForwardBitParser<'a> {
     }
 }
 
-impl<'a> BitParser<'a> for ForwardBitParser<'a> {
+impl<'a> ForwardBitParser<'a> {
     /// Create a new forward bit parser
-    fn new(data: &'a [u8]) -> Result<Self> {
+    pub fn new(data: &'a [u8]) -> Result<Self> {
         if data.len() == 0 {
             return Err(Error::EmptyInputData);
         }
@@ -155,17 +136,17 @@ impl<'a> BitParser<'a> for ForwardBitParser<'a> {
         })
     }
 
-    fn len(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.readable
     }
 
     /// True if there are no bits left to read
-    fn is_empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.readable == 0
     }
 
     /// Get the given number of bits, or return an error.
-    fn take(&mut self, len: usize) -> Result<u64> {
+    pub fn take(&mut self, len: usize) -> Result<u64> {
         if self.data.bit_len() < len {
             return Err(Error::NotEnoughBits {
                 requested: len,
@@ -186,7 +167,7 @@ impl<'a> BitParser<'a> for ForwardBitParser<'a> {
     }
 
     /// Peek at next len bits without consuming them
-    fn peek(&self, len: usize) -> Result<u64> {
+    pub fn peek(&self, len: usize) -> Result<u64> {
         if self.data.bit_len() < len {
             return Err(Error::NotEnoughBits {
                 requested: len,
@@ -210,10 +191,10 @@ pub struct BackwardBitParser {
     pos: usize,
 }
 
-impl<'a> BitParser<'a> for BackwardBitParser {
+impl BackwardBitParser {
     /// Create a new backward bit parser. The header is skipped automatically or
     /// an error is returned if the initial 1 cannot be found in the first 8 bits.
-    fn new(data: &'a [u8]) -> Result<Self> {
+    pub fn new(data: &[u8]) -> Result<Self> {
         if data.len() == 0 {
             return Err(Error::EmptyInputData);
         }
@@ -236,12 +217,12 @@ impl<'a> BitParser<'a> for BackwardBitParser {
     }
 
     /// True if there are no bits left to read
-    fn is_empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.readable == 0
     }
 
     /// Get the given number of bits, or return an error.
-    fn take(&mut self, len: usize) -> Result<u64> {
+    pub fn take(&mut self, len: usize) -> Result<u64> {
         if self.data.len() * 8 < len {
             return Err(Error::NotEnoughBits {
                 requested: len,
@@ -250,6 +231,11 @@ impl<'a> BitParser<'a> for BackwardBitParser {
         }
         if len > 64 {
             return Err(Error::MaximumReadableBitsExceeded(len));
+        }
+
+        if len == 0 {
+            // To prevent bug
+            return Ok(0);
         }
 
         // we verified up there the conditions, can not fail
@@ -264,11 +250,7 @@ impl<'a> BitParser<'a> for BackwardBitParser {
         Ok(res)
     }
 
-    fn len(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.readable
-    }
-
-    fn peek(&self, _len: usize) -> Result<u64> {
-        todo!()
     }
 }
