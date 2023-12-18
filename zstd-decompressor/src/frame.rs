@@ -1,10 +1,13 @@
-use std::any::type_name;
+use std::{any::type_name, hash::Hasher};
+
+
 
 use crate::{
     block::Block,
     decoding_context::DecodingContext,
     parsing::{self, ForwardBitParser, ForwardByteParser},
     utils::{get_n_bits, int_from_array},
+    
 };
 
 use eyre;
@@ -224,27 +227,30 @@ impl<'a> ZStandardFrame<'a> {
     pub fn decode(self) -> Result<Vec<u8>> {
         let mut context: DecodingContext = DecodingContext::new(self.header.window_size)?;
         if self.header.content_checksum_flag {
-            context.checksum = Some(with_seed(0));
+            context.checksum = Some(twox_hash::XxHash64::with_seed(0));
         }
 
         for block in self.blocks.into_iter() {
             block.decode(&mut context)?; // Copying block content, TODO: check if possible other way
             match context.checksum {
-                Some(hash) => context.checksum.unwrap().write(context.decoded),  //Building the hash by adding decoded data
+                Some(hash) => context.checksum.unwrap().write(&context.decoded),  //Building the hash by adding decoded data
                 None => (),
             }
+        }
 
         if self.header.content_checksum_flag {
-            if (context.checksum.unwrap().finish() as u32 == self.checksum.unwrap()){
-                Ok(context.decoded)
+            if context.checksum.unwrap().finish() as u32 == self.checksum.unwrap(){
+                return Ok(context.decoded);
             }
             else {
-                Err(BadChecksum)
+                return Err(Error::BadCheksum);
             }
         }
         else {
-            Ok(context.decoded)
+            return Ok(context.decoded);
         }
+
+    
         
     }
 
@@ -297,4 +303,4 @@ mod parse_window_descriptor_tests {
         );
     }
 }
-}
+

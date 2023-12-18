@@ -1,8 +1,10 @@
+use twox_hash::XxHash64;
+
 use crate::{
     decoders::huffman::HuffmanDecoder,
     frame::{self, Error, MAX_WIN_SIZE},
     sequences::SymbolCompressionMode,
-    xxh3::Hash64,
+    
 };
 
 pub struct DecodingContext {
