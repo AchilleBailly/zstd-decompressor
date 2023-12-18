@@ -1,7 +1,8 @@
 use crate::{
-    decoding_context::DecodingContext,
+    decoding_context::{self, DecodingContext},
     literals::{self, LiteralsSection},
     parsing::ForwardByteParser,
+    sequences::{self, Sequences},
     utils::int_from_array,
 };
 
@@ -18,6 +19,10 @@ pub enum Error {
     LargeBlockSize,
     #[error{"Error in literals section: {0}"}]
     LiteralsSectionError(#[from] literals::Error),
+    #[error{"Error in sequences section: {0}"}]
+    SequencesSectionError(#[from] sequences::Error),
+    #[error{"Decoding context error: {0}"}]
+    DecodingContextError(#[from] decoding_context::Error),
 }
 
 type Result<T> = eyre::Result<T, Error>;
@@ -31,6 +36,7 @@ pub enum Block<'a> {
     },
     CompressedBlock {
         literals_section: LiteralsSection<'a>,
+        sequences_section: Sequences<'a>,
     },
 }
 
@@ -57,6 +63,7 @@ impl<'a> Block<'a> {
                 },
                 2 => Block::CompressedBlock {
                     literals_section: LiteralsSection::parse(parser)?,
+                    sequences_section: Sequences::parse(parser)?,
                 },
                 _ => return Err(Error::ReservedBlockType()),
             },
@@ -65,21 +72,28 @@ impl<'a> Block<'a> {
     }
 
     pub fn decode(self, context: &mut DecodingContext) -> Result<()> {
-        let mut decoded = match self {
-            Self::RawBlock(a) => Vec::from(a),
-            Self::RLEBlock { byte, repeat } => vec![byte; repeat as usize],
-            Self::CompressedBlock { literals_section } => literals_section.decode(context)?,
+        match self {
+            Self::RawBlock(a) => context.decoded.append(&mut Vec::from(a)),
+            Self::RLEBlock { byte, repeat } => {
+                context.decoded.append(&mut vec![byte; repeat as usize])
+            }
+            Self::CompressedBlock {
+                literals_section,
+                sequences_section,
+            } => {
+                let literals = literals_section.decode(context)?;
+                let seq = sequences_section.decode(context)?;
+                context.execute_sequences(seq, &literals)?;
+            }
         };
 
-        if decoded.len() as u64 > context.window_size {
-            return Err(Error::LargeBlockSize);
-        } else if decoded.len() + context.decoded.len() > context.window_size as usize {
-            for _ in 0..decoded.len() + context.decoded.len() - context.window_size as usize {
-                context.decoded.remove(0);
-            }
-        }
-
-        context.decoded.append(&mut decoded);
+        // if decoded.len() as u64 > context.window_size {
+        //     return Err(Error::LargeBlockSize);
+        // } else if decoded.len() + context.decoded.len() > context.window_size as usize {
+        //     for _ in 0..decoded.len() + context.decoded.len() - context.window_size as usize {
+        //         context.decoded.remove(0);
+        //     }
+        // }
 
         Ok(())
     }

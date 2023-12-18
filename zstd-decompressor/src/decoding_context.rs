@@ -1,21 +1,29 @@
 use crate::{
-    decoders::huffman::HuffmanDecoder,
-    frame::{self, Error, MAX_WIN_SIZE},
-    sequences::SymbolCompressionMode,
+    decoders::huffman::HuffmanDecoder, frame::MAX_WIN_SIZE, sequences::SymbolCompressionMode,
 };
+
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error{"Window size is too big: max is {max} but got {got}"}]
+    WindowSizeTooBig { max: u64, got: u64 },
+    #[error{"Bad Offset value (0)"}]
+    NullOffsetError,
+}
 
 pub struct DecodingContext {
     pub huffman_decoder: Option<HuffmanDecoder>,
     pub decoded: Vec<u8>,
     pub offsets: [usize; 3],
     pub window_size: u64,
-    pub repeat_decoder: Option<SymbolCompressionMode>,
+    pub ll_repeat_decoder: Option<SymbolCompressionMode>,
+    pub cmov_repeat_decoder: Option<SymbolCompressionMode>,
+    pub ml_repeat_decoder: Option<SymbolCompressionMode>,
 }
 
 impl DecodingContext {
     pub fn new(window_size: u64) -> Result<Self, Error> {
         if window_size > MAX_WIN_SIZE {
-            return Err(frame::Error::WindowSizeTooBig {
+            return Err(Error::WindowSizeTooBig {
                 max: MAX_WIN_SIZE,
                 got: window_size,
             });
@@ -26,7 +34,9 @@ impl DecodingContext {
             decoded: Vec::new(),
             offsets: [1, 4, 8],
             window_size: window_size,
-            repeat_decoder: None,
+            ll_repeat_decoder: None,
+            cmov_repeat_decoder: None,
+            ml_repeat_decoder: None,
         })
     }
 

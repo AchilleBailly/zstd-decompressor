@@ -2,7 +2,7 @@ use std::any::type_name;
 
 use crate::{
     block::Block,
-    decoding_context::DecodingContext,
+    decoding_context::{self, DecodingContext},
     parsing::{self, ForwardBitParser, ForwardByteParser},
     utils::{get_n_bits, int_from_array},
 };
@@ -32,6 +32,8 @@ pub enum Error {
     ContentSizeTooBig(),
     #[error{"Bad Offset value (0)"}]
     NullOffsetError,
+    #[error{"Decoding context error: {0}"}]
+    DecodingContextError(#[from] decoding_context::Error),
 }
 
 const MAGIC_ZSTD: u32 = 0xFD2FB528;

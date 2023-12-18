@@ -76,7 +76,7 @@ pub fn parse_fse_table(input: &mut ForwardBitParser) -> Result<(u8, Vec<i16>)> {
     // TODO: free memory once read, including partially read last byte
 
     if remaining != 0 || n_sym >= MAX_SYMBOL {
-        return Err(Error::CorruptedTable());
+        return Err(Error::CorruptedTable);
     }
 
     return Ok((al, distribution));
@@ -175,7 +175,7 @@ impl FseTable {
         let mut tmp_table = tmp_table
             .into_iter()
             .map(|v| match v {
-                None => return Err(Error::CorruptedTable()),
+                None => return Err(Error::CorruptedTable),
                 Some(s) => Ok(s),
             })
             .collect::<Result<Vec<TmpState>>>()?;

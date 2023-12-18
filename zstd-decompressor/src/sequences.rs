@@ -38,6 +38,7 @@ const MATCH_LENGTH_DISTRI: [i16; 53] = [
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, -1, -1, -1, -1, -1, -1, -1,
 ];
 
+#[derive(Debug)]
 pub struct Sequences<'a> {
     pub number_of_sequences: usize,
     pub literal_lengths_mode: SymbolCompressionMode,
@@ -114,19 +115,12 @@ impl<'a> Sequences<'a> {
 
         let res = modes_tmp
             .iter()
-            .enumerate()
-            .map(|(t, mode_tmp)| {
+            .map(|mode_tmp| {
                 let mut new_data;
                 match mode_tmp {
                     SymbolCompressionModeTmp::RepeatMode => Ok(SymbolCompressionMode::RepeatMode),
                     SymbolCompressionModeTmp::PredefinedMode => {
-                        let code_type = match t {
-                            0 => CodeType::LiteralsLength,
-                            1 => CodeType::Offset,
-                            2 => CodeType::MatchLength,
-                            _ => unreachable!(),
-                        };
-                        Ok(SymbolCompressionMode::PredefinedMode(code_type))
+                        Ok(SymbolCompressionMode::PredefinedMode)
                     }
                     SymbolCompressionModeTmp::RLEMode => {
                         Ok(SymbolCompressionMode::RLEMode(input.u8()?))
@@ -154,32 +148,29 @@ impl<'a> Sequences<'a> {
         code_type: CodeType,
         mode: SymbolCompressionMode,
         previous_decoder: &Option<SymbolCompressionMode>,
-    ) -> Result<Box<dyn BitDecoder<u16>>>
+    ) -> Result<(Box<dyn BitDecoder<u16>>, SymbolCompressionMode)>
     where
         RLEDecoder: BitDecoder<u16>,
         FseDecoder: BitDecoder<u16>,
     {
         match mode {
-            SymbolCompressionMode::RLEMode(b) => Ok(Box::new(RLEDecoder::new(b))),
-            SymbolCompressionMode::FseCompressedMode(table) => {
-                Ok(Box::new(FseDecoder::new_from_table(table)))
-            }
+            SymbolCompressionMode::RLEMode(b) => Ok((
+                Box::new(RLEDecoder::new(b)),
+                SymbolCompressionMode::RLEMode(b),
+            )),
+            SymbolCompressionMode::FseCompressedMode(table) => Ok((
+                Box::new(FseDecoder::new_from_table(table.clone())),
+                SymbolCompressionMode::FseCompressedMode(table),
+            )),
             SymbolCompressionMode::RepeatMode => match previous_decoder {
                 None => Err(Error::NoPreviousDecoder),
-                Some(d) => {
-                    if matches!(d, SymbolCompressionMode::PredefinedMode(..)) {
-                        return Self::get_decoder(
-                            code_type.clone(),
-                            SymbolCompressionMode::PredefinedMode(code_type),
-                            &None,
-                        );
-                    }
-
-                    Self::get_decoder(code_type, d.clone(), &None)
+                Some(d) if matches!(d, &SymbolCompressionMode::RepeatMode) => {
+                    Err(Error::NoPreviousDecoder) // We don't want infinit recursion
                 }
+                Some(d) => Self::get_decoder(code_type, d.clone(), &None),
             },
-            SymbolCompressionMode::PredefinedMode(c) => {
-                let table = match c {
+            SymbolCompressionMode::PredefinedMode => {
+                let table = match code_type {
                     CodeType::LiteralsLength => {
                         FseTable::from_distribution(6, &LITERALS_LENGTH_DISTRI)?
                     }
@@ -187,7 +178,10 @@ impl<'a> Sequences<'a> {
                     CodeType::MatchLength => FseTable::from_distribution(6, &MATCH_LENGTH_DISTRI)?,
                 };
 
-                Ok(Box::new(FseDecoder::new_from_table(table)))
+                Ok((
+                    Box::new(FseDecoder::new_from_table(table)),
+                    SymbolCompressionMode::PredefinedMode,
+                ))
             }
         }
     }
@@ -195,17 +189,20 @@ impl<'a> Sequences<'a> {
     /// Return vector of (literals length, offset value, match length) and update the
     /// decoding context with the tables if appropriate.
     pub fn decode(self, context: &mut DecodingContext) -> Result<Vec<(usize, usize, usize)>> {
-        let mut ll_decoder = Self::get_decoder(
+        let (mut ll_decoder, new_ll_repeat) = Self::get_decoder(
             CodeType::LiteralsLength,
             self.literal_lengths_mode,
-            &context.repeat_decoder,
+            &context.ll_repeat_decoder,
         )?;
-        let mut offset_decoder =
-            Self::get_decoder(CodeType::Offset, self.offsets_mode, &context.repeat_decoder)?;
-        let mut match_decoder = Self::get_decoder(
+        let (mut offset_decoder, new_cmov_repeat) = Self::get_decoder(
+            CodeType::Offset,
+            self.offsets_mode,
+            &context.cmov_repeat_decoder,
+        )?;
+        let (mut match_decoder, new_ml_repeat) = Self::get_decoder(
             CodeType::MatchLength,
             self.match_lengths_mode,
-            &context.repeat_decoder,
+            &context.ml_repeat_decoder,
         )?;
 
         let mut seq_decoder =
@@ -215,14 +212,23 @@ impl<'a> Sequences<'a> {
         seq_decoder.initialize(&mut parser)?;
 
         let mut res = Vec::new();
-        while seq_decoder.expected_bits() <= parser.len() {
+
+        // TODO: verify that -1
+        for _ in 0..self.number_of_sequences - 1 {
+            seq_decoder.update_symbol_value(&mut parser)?;
             res.push(seq_decoder.symbol());
             seq_decoder.update_bits(&mut parser)?;
         }
 
+        seq_decoder.update_symbol_value(&mut parser)?;
         res.push(seq_decoder.symbol());
 
-        todo!()
+        // Update the repeat decoder for each type
+        context.cmov_repeat_decoder = Some(new_cmov_repeat);
+        context.ll_repeat_decoder = Some(new_ll_repeat);
+        context.ml_repeat_decoder = Some(new_ml_repeat);
+
+        Ok(res)
     }
 }
 
@@ -234,16 +240,16 @@ pub enum SymbolCompressionModeTmp {
     RepeatMode,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum CodeType {
     LiteralsLength,
     Offset,
     MatchLength,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum SymbolCompressionMode {
-    PredefinedMode(CodeType),
+    PredefinedMode,
     RLEMode(u8),
     FseCompressedMode(FseTable),
     RepeatMode,
