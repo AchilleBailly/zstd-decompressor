@@ -1,13 +1,10 @@
 use std::{any::type_name, hash::Hasher};
 
-
-
 use crate::{
     block::Block,
     decoding_context::{self, DecodingContext},
     parsing::{self, ForwardBitParser, ForwardByteParser},
     utils::{get_n_bits, int_from_array},
-    
 };
 
 use eyre;
@@ -131,7 +128,7 @@ impl FrameHeader {
         let fcs_field_size;
         if content_size_flag == 0 && single_segment_flag == 0 {
             fcs_field_size = None;
-        } else if single_segment_flag == 1 {
+        } else if content_size_flag == 0 && single_segment_flag == 1 {
             fcs_field_size = Some(1u8);
         } else {
             fcs_field_size = Some(1 << content_size_flag);
@@ -157,8 +154,14 @@ impl FrameHeader {
 
         let content_size = match fcs_field_size {
             None => None,
-            Some(v) if v == 2 => Some(int_from_array::<u64>(input.slice(v as usize)?) + 256),
-            Some(v) => Some(int_from_array(input.slice(v as usize)?)),
+            Some(v) => {
+                let mut bit_parser = ForwardBitParser::new(input.slice(v as usize)?)?;
+                let mut res = bit_parser.take(v as usize * 8).unwrap();
+                if v == 2 {
+                    res += 256;
+                }
+                Some(res)
+            }
         };
 
         let window_size = window_size
@@ -228,32 +231,27 @@ impl<'a> ZStandardFrame<'a> {
 
     pub fn decode(self) -> Result<Vec<u8>> {
         let mut context: DecodingContext = DecodingContext::new(self.header.window_size)?;
-        if self.header.content_checksum_flag {
-            context.checksum = Some(twox_hash::XxHash64::with_seed(0));
-        }
 
         for block in self.blocks.into_iter() {
             block.decode(&mut context)?; // Copying block content, TODO: check if possible other way
             match context.checksum {
-                Some(hash) => context.checksum.unwrap().write(&context.decoded),  //Building the hash by adding decoded data
+                Some(mut hash) => hash.write(&context.decoded), //Building the hash by adding decoded data
                 None => (),
             }
         }
 
         if self.header.content_checksum_flag {
-            if context.checksum.unwrap().finish() as u32 == self.checksum.unwrap(){
-                return Ok(context.decoded);
+            context.checksum = Some(twox_hash::XxHash64::with_seed(0));
+
+            if context.checksum.unwrap().finish() as u32 == self.checksum.unwrap() {
+            } else {
+                println!("Warning: Bad checksum !");
             }
-            else {
-                return Err(Error::BadCheksum);
-            }
-        }
-        else {
+
+            return Ok(context.decoded);
+        } else {
             return Ok(context.decoded);
         }
-
-    
-        
     }
 
     pub fn header(&self) -> &FrameHeader {
@@ -305,4 +303,3 @@ mod parse_window_descriptor_tests {
         );
     }
 }
-

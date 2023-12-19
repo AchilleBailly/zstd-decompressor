@@ -1,9 +1,9 @@
-use num_traits::pow;
 use std::fmt::{self, Formatter};
 
 use crate::{
     decoders::{alternating::AlternatingDecoder, fse::FseTable, BitDecoder},
     parsing::{BackwardBitParser, ForwardBitParser, ForwardByteParser},
+    utils::discrete_log2,
 };
 
 use super::Result;
@@ -51,7 +51,8 @@ impl Iterator for HuffmanDecoderIterator<'_> {
                 }));
                 self.next()
             }
-            _ => None,
+            Some((HuffmanDecoder::Absent, _)) => self.next(),
+            None => None,
         }
     }
 }
@@ -67,7 +68,7 @@ impl fmt::Debug for HuffmanDecoder {
                 HuffmanDecoder::Symbol { payload } => {
                     t.field(&noeud.1, &payload);
                 }
-                _ => (),
+                _ => unreachable!(),
             }
         }
 
@@ -83,7 +84,9 @@ impl HuffmanDecoder {
         } else {
             Self::parse_direct(input, header as usize - 127)?
         };
-        Self::from_weights(weights)
+        let tree = Self::from_weights(weights)?;
+
+        Ok(tree)
     }
 
     fn parse_direct(input: &mut ForwardByteParser, num_weights: usize) -> Result<Vec<u8>> {
@@ -115,7 +118,7 @@ impl HuffmanDecoder {
         let mut decoder = AlternatingDecoder::new(fse_table);
         decoder.initialize(&mut bitstream)?;
 
-        while decoder.expected_bits() < bitstream.len() {
+        while decoder.expected_bits() <= bitstream.len() {
             weights.push(decoder.symbol() as u8);
             decoder.update_bits(&mut bitstream)?;
         }
@@ -129,37 +132,37 @@ impl HuffmanDecoder {
     pub fn insert(&mut self, symbol: u8, width: u8) -> bool {
         if width == 0 {
             match self {
-                HuffmanDecoder::Absent => *self = HuffmanDecoder::Symbol { payload: symbol },
-                _ => return false,
+                HuffmanDecoder::Absent => {
+                    *self = HuffmanDecoder::Symbol { payload: symbol };
+                    true
+                }
+                _ => false,
             }
         } else {
             match self {
                 HuffmanDecoder::Tree {
                     left: gauche,
                     right: droite,
-                } => {
-                    if gauche.insert(symbol, width - 1) != true {
-                        droite.insert(symbol, width - 1);
-                    }
-                }
+                } => gauche.insert(symbol, width - 1) || droite.insert(symbol, width - 1),
                 HuffmanDecoder::Absent => {
                     *self = HuffmanDecoder::Tree {
                         left: Box::new(HuffmanDecoder::Absent),
                         right: Box::new(HuffmanDecoder::Absent),
                     };
-                    self.insert(symbol, width);
+                    self.insert(symbol, width)
                 }
-                HuffmanDecoder::Symbol { payload: _ } => return false,
+                HuffmanDecoder::Symbol { payload: _ } => {
+                    panic!("Trying to inster a symbol into another")
+                }
             }
         }
-        return true;
     }
 
     pub fn from_number_of_bits(numb_bytes: Vec<u8>) -> HuffmanDecoder {
         let mut symb: Vec<(u8, u8)> = vec![];
-        for i in 1..numb_bytes.len() {
+        for i in 0..numb_bytes.len() {
             if numb_bytes[i] != 0 {
-                symb.push((i.try_into().unwrap(), numb_bytes[i].try_into().unwrap()))
+                symb.push((i as u8, numb_bytes[i]))
             }
         }
         symb.sort_by(|a, b| a.1.cmp(&b.1).then(a.0.cmp(&b.0).reverse()));
@@ -172,21 +175,19 @@ impl HuffmanDecoder {
     }
 
     pub fn from_weights(weights: Vec<u8>) -> Result<HuffmanDecoder> {
-        let mut sum: i32 = 0; //Pour se souvenir de la somme des poids connus
-        for i in 1..weights.len() {
+        let mut sum: u32 = 0; //Pour se souvenir de la somme des poids connus
+        for i in 0..weights.len() {
             if weights[i] != 0 {
-                sum += pow(2, (weights[i] - 1).into()); //On calcule la somme
+                sum += 1 << (weights[i] - 1); //On calcule la somme
             }
         }
-        let mut puissance: u8 = sum.ilog2().try_into().unwrap(); //On calcule la puissance
-                                                                 //ilog2 arrondit par valeur inférieure
-        if pow(2, puissance.into()) < sum {
+        let mut puissance: u8 = discrete_log2(sum); //On calcule la puissance
+                                                    //ilog2 arrondit par valeur inférieure
+        if 1 << puissance < sum {
             puissance += 1;
         }
 
-        let manquant: u8 = ((pow(2, puissance.try_into().unwrap()) - sum).ilog2() + 1) //On calcule la puissance de deux manquante dans les poids
-            .try_into()
-            .unwrap();
+        let manquant: u8 = ((1u32 << puissance) - sum) as u8;
 
         let mut prefixewidths: Vec<u8> = vec![];
         for i in 0..weights.len() {

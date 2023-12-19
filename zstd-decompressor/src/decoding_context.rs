@@ -102,12 +102,13 @@ impl DecodingContext {
                 literals_pos += 1;
             }
 
+            let decoded_offset =
+                self.decode_offset(decoded_offset, literals.len() - literals_pos)?;
+
             for _ in 0..n_offset_copy {
                 self.decoded
                     .push(self.decoded[self.decoded.len() - decoded_offset]);
             }
-
-            self.decode_offset(decoded_offset, literals.len() - literals_pos)?;
         }
 
         for literals_pos in literals_pos..literals.len() {

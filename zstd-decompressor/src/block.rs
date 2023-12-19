@@ -1,9 +1,8 @@
 use crate::{
     decoding_context::{self, DecodingContext},
     literals::{self, LiteralsSection},
-    parsing::ForwardByteParser,
+    parsing::{ForwardBitParser, ForwardByteParser},
     sequences::{self, Sequences},
-    utils::int_from_array,
 };
 
 use eyre;
@@ -43,15 +42,12 @@ pub enum Block<'a> {
 impl<'a> Block<'a> {
     pub fn parse(parser: &mut ForwardByteParser<'a>) -> Result<(Block<'a>, bool)> {
         let header = parser.slice(3)?;
-        let mut header: u32 = int_from_array(header);
 
-        let last_block = (header & 1) != 0;
-        header >>= 1;
+        let mut header_parser = ForwardBitParser::new(header).unwrap();
 
-        let block_type = header & 0b11;
-        header >>= 2;
-
-        let block_size = header as usize;
+        let last_block = header_parser.take(1).unwrap() == 1;
+        let block_type = header_parser.take(2).unwrap();
+        let block_size = header_parser.take(header_parser.len()).unwrap() as usize;
 
         Ok((
             match block_type {
@@ -61,10 +57,14 @@ impl<'a> Block<'a> {
                     byte: parser.u8()?,
                     repeat: block_size as u32,
                 },
-                2 => Block::CompressedBlock {
-                    literals_section: LiteralsSection::parse(parser)?,
-                    sequences_section: Sequences::parse(parser)?,
-                },
+                2 => {
+                    let mut new_parser = ForwardByteParser::new(parser.slice(block_size)?);
+
+                    Block::CompressedBlock {
+                        literals_section: LiteralsSection::parse(&mut new_parser)?,
+                        sequences_section: Sequences::parse(&mut new_parser)?,
+                    }
+                }
                 _ => return Err(Error::ReservedBlockType()),
             },
             last_block,
