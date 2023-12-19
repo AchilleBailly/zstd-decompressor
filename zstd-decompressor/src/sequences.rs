@@ -214,9 +214,14 @@ impl<'a> Sequences<'a> {
         let mut res = Vec::new();
 
         // TODO: verify that -1
-        for _ in 0..self.number_of_sequences - 1 {
+        for _i in 0..self.number_of_sequences - 1 {
             seq_decoder.update_symbol_value(&mut parser)?;
-            res.push(seq_decoder.symbol());
+            let seq_tmp = seq_decoder.symbol();
+            // println!(
+            //     "{: >2} {: >2} {: >3} {: >2}",
+            //     i, seq_tmp.0, seq_tmp.2, seq_tmp.1,
+            // );
+            res.push(seq_tmp);
             seq_decoder.update_bits(&mut parser)?;
         }
 

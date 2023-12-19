@@ -187,7 +187,7 @@ impl HuffmanDecoder {
             puissance += 1;
         }
 
-        let manquant: u8 = ((1u32 << puissance) - sum) as u8;
+        let manquant: u8 = discrete_log2(((1u32 << puissance) - sum) as u8) + 1;
 
         let mut prefixewidths: Vec<u8> = vec![];
         for i in 0..weights.len() {

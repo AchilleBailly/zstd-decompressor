@@ -82,7 +82,7 @@ impl DecodingContext {
                 self.offsets[0] = offset - 3;
             }
         }
-        return Ok(self.offsets[1]);
+        return Ok(self.offsets[0]);
     }
 
     /// Execute the sequences while updating the offsets
@@ -92,20 +92,15 @@ impl DecodingContext {
         literals: &[u8],
     ) -> Result<(), Error> {
         let mut literals_pos = 0;
-        for (literals_copy, decoded_offset, n_offset_copy) in sequences.into_iter() {
-            if decoded_offset == 0 {
-                return Err(Error::NullOffsetError);
-            }
-
-            for _ in 0..literals_copy {
+        for (literal_length, decoded_offset, match_length) in sequences.into_iter() {
+            for _ in 0..literal_length {
                 self.decoded.push(literals[literals_pos]);
                 literals_pos += 1;
             }
 
-            let decoded_offset =
-                self.decode_offset(decoded_offset, literals.len() - literals_pos)?;
-
-            for _ in 0..n_offset_copy {
+            let decoded_offset = self.decode_offset(decoded_offset, literal_length)?;
+            dbg!(literal_length, decoded_offset, match_length);
+            for _ in 0..match_length {
                 self.decoded
                     .push(self.decoded[self.decoded.len() - decoded_offset]);
             }
@@ -117,4 +112,19 @@ impl DecodingContext {
 
         Ok(())
     }
+}
+
+#[test]
+fn execute_sequences() {
+    let mut context = DecodingContext::new(0x42).unwrap();
+    context
+        .execute_sequences(
+            vec![(3, 5, 3), (2, 11, 1)],
+            &[0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68],
+        )
+        .unwrap();
+    assert_eq!(
+        vec![0x61, 0x62, 0x63, 0x62, 0x63, 0x62, 0x64, 0x65, 0x61, 0x66, 0x67, 0x68],
+        context.decoded
+    );
 }
