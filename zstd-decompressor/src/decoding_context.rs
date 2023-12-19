@@ -99,7 +99,7 @@ impl DecodingContext {
             }
 
             let decoded_offset = self.decode_offset(decoded_offset, literal_length)?;
-            dbg!(literal_length, decoded_offset, match_length);
+
             for _ in 0..match_length {
                 self.decoded
                     .push(self.decoded[self.decoded.len() - decoded_offset]);
