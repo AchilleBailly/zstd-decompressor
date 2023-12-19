@@ -55,6 +55,7 @@ mod huffman_test {
         // 0 repeated 65 times, 1, 2
         let weights: Vec<_> = std::iter::repeat(0).take(65).chain([1, 2]).collect();
         let decoder = HuffmanDecoder::from_weights(weights).unwrap();
+        dbg!(&decoder);
         let mut parser = BackwardBitParser::new(&[0x97, 0x01]).unwrap();
         let mut result = String::new();
         while !parser.is_empty() {

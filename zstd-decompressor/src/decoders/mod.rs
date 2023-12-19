@@ -17,7 +17,9 @@ pub enum Error {
     #[error{"FSE table error: accuracy log {0} is too large."}]
     LargeAccuracyLog(u8),
     #[error{"FSE table is corrupted."}]
-    CorruptedTable(),
+    CorruptedTable,
+    #[error{"Corrupted file: Max code value in sequence decoding has been exceeded"}]
+    SequenceCodeMaxValueExceeded,
 }
 
 pub type Result<T> = eyre::Result<T, Error>;

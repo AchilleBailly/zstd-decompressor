@@ -21,6 +21,7 @@ mod frame_test {
             0xFD,
             0b01_1_0_0_1_00, // single segment, so FCS is 1 byte, w/ checksum
             0x04,            // frame content size <
+            0x00,            // <
             0x21,            // block header: raw block and last one
             0x0,
             0x0,  // <
@@ -154,15 +155,15 @@ pub mod frame_header_tests {
     fn simple_valid_data_ok() {
         let mut parser = ForwardByteParser::new(&[
             0b01_1_0_0_0_00,
-            0xcc, // Only frame content size present in 1 byte, window descriptor null so s
-                  // ingle segment flag is 1 and window size will equal to frame content size
+            0xcc, // Only frame content size present in 2 bytes, window descriptor null so s
+            0xcc, // ingle segment flag is 1 and window size will equal to frame content size
         ]);
 
         let h = FrameHeader::parse(&mut parser).unwrap();
 
         assert_eq!(h.content_checksum_flag, false, "Content checksum is not OK");
-        assert_eq!(h.window_size, 0xcc, "Window size is not OK");
-        assert_eq!(h.content_size, Some(0xcc), "Content size is not OK");
+        assert_eq!(h.window_size, 0xcccc + 256, "Window size is not OK");
+        assert_eq!(h.content_size, Some(0xcccc + 256), "Content size is not OK");
         assert_eq!(h.dictionnary_id, None, "Dictionnary ID is not OK");
     }
 
@@ -267,6 +268,7 @@ pub mod z_standard_frame_tests {
         let mut parser = ForwardByteParser::new(&[
             0b01_1_0_0_1_00, // single segment, so FCS is 1 byte, w/ checksum
             0x04,            // frame content size <
+            0x00,            //  <
             0x21,            // block header: raw block and last one
             0x0,
             0x0,  // <
@@ -293,6 +295,7 @@ pub mod z_standard_frame_tests {
         let mut parser = ForwardByteParser::new(&[
             0b01_1_0_0_0_00, // single segment, so FCS is 1 byte, w/o checksum
             0x04,            // frame content size <
+            0x00,            //  <
             0x21,            // block header: raw block and last one
             0x0,
             0x0,  // <
@@ -315,6 +318,7 @@ pub mod z_standard_frame_tests {
         let mut parser = ForwardByteParser::new(&[
             0b01_1_0_0_1_00, // single segment, so FCS is 1 byte, w/ checksum
             0x04,            // frame content size <
+            0x00,            // <
             0x21,            // block header: raw block and last one
             0x0,
             0x0,  // <

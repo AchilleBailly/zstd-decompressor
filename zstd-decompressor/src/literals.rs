@@ -158,7 +158,7 @@ impl<'a> LiteralsSection<'a> {
             2 | 3 => match parser.take(2).unwrap() {
                 // Compressed or TreeLess
                 0 => {
-                    let mut parser = ForwardBitParser::new(input.slice(3)?).unwrap();
+                    let mut parser = ForwardBitParser::new(input.slice(2)?).unwrap();
                     (
                         ((header as usize) >> 4) + parser.take(6).unwrap() as usize,
                         parser.take(10).unwrap() as usize,
@@ -166,7 +166,7 @@ impl<'a> LiteralsSection<'a> {
                     )
                 }
                 1 => {
-                    let mut parser = ForwardBitParser::new(input.slice(3)?).unwrap();
+                    let mut parser = ForwardBitParser::new(input.slice(2)?).unwrap();
                     (
                         ((header as usize) >> 4) + parser.take(6).unwrap() as usize,
                         parser.take(10).unwrap() as usize,
@@ -174,7 +174,7 @@ impl<'a> LiteralsSection<'a> {
                     )
                 }
                 2 => {
-                    let mut parser = ForwardBitParser::new(input.slice(4)?).unwrap();
+                    let mut parser = ForwardBitParser::new(input.slice(3)?).unwrap();
                     (
                         ((header as usize) >> 4) + parser.take(8).unwrap() as usize,
                         parser.take(14).unwrap() as usize,
@@ -182,7 +182,7 @@ impl<'a> LiteralsSection<'a> {
                     )
                 }
                 3 => {
-                    let mut parser = ForwardBitParser::new(input.slice(5)?).unwrap();
+                    let mut parser = ForwardBitParser::new(input.slice(4)?).unwrap();
                     (
                         ((header as usize) >> 4) + parser.take(14).unwrap() as usize,
                         parser.take(18).unwrap() as usize,

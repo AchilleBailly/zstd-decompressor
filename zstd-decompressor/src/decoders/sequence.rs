@@ -7,7 +7,7 @@ pub struct SequenceDecoder<'d> {
     cmov_code_decoder: &'d mut dyn BitDecoder<u16>,
     ml_code_decoder: &'d mut dyn BitDecoder<u16>,
     ll_value: usize,
-    offset_value: usize,
+    cmov_value: usize,
     match_value: usize,
 }
 
@@ -22,7 +22,7 @@ impl<'d> SequenceDecoder<'d> {
             cmov_code_decoder,
             ml_code_decoder,
             ll_value: 0,
-            offset_value: 0,
+            cmov_value: 0,
             match_value: 0,
         }
     }
@@ -36,6 +36,18 @@ impl<'d> SequenceDecoder<'d> {
         let (_, baseline, nb_bits) = table.iter().filter(|v| v.0 == code).next().unwrap();
 
         Ok(bitstream.take(*nb_bits)? as usize + *baseline as usize)
+    }
+
+    pub fn update_symbol_value(&mut self, bitstream: &mut BackwardBitParser) -> Result<bool> {
+        let offset_code = self.cmov_code_decoder.symbol();
+        let ll_code = self.ll_code_decoder.symbol();
+        let match_l_code = self.ml_code_decoder.symbol();
+
+        self.cmov_value = (1usize << offset_code) + bitstream.take(offset_code as usize)? as usize;
+        self.match_value = self.get_value(match_l_code, &ML_CODE_TO_VALUE, bitstream)?;
+        self.ll_value = self.get_value(ll_code, &LL_CODE_TO_VALUE, bitstream)?;
+
+        Ok(false)
     }
 }
 
@@ -55,29 +67,20 @@ impl<'a> BitDecoder<(usize, usize, usize)> for SequenceDecoder<'a> {
     }
 
     fn symbol(&mut self) -> (usize, usize, usize) {
-        (self.ll_value, self.offset_value, self.match_value)
+        (self.ll_value, self.cmov_value, self.match_value)
+        // unimplemented!(
+        //     "Should not be used in that case, you should use SequenceDecoder::get_symbol_value."
+        // )
     }
 
     fn update_bits(&mut self, bitstream: &mut BackwardBitParser) -> Result<bool> {
         // Potentially reverse order of what is supposed to be !!!!!
 
-        self.cmov_code_decoder.update_bits(bitstream)?;
-        self.ml_code_decoder.update_bits(bitstream)?;
         self.ll_code_decoder.update_bits(bitstream)?;
+        self.ml_code_decoder.update_bits(bitstream)?;
+        self.cmov_code_decoder.update_bits(bitstream)?;
 
-        let offset_code = self.cmov_code_decoder.symbol();
-        let ll_code = self.ll_code_decoder.symbol();
-        let match_l_code = self.ml_code_decoder.symbol();
-
-        self.ll_value = self.get_value(ll_code, &LL_CODE_TO_VALUE, bitstream)?;
-        self.match_value = self.get_value(match_l_code, &ML_CODE_TO_VALUE, bitstream)?;
-        self.offset_value =
-            (1usize << offset_code) + bitstream.take(offset_code as usize)? as usize;
-        if self.offset_value > 3 {
-            self.offset_value -= 3;
-        }
-
-        todo!()
+        Ok(false)
     }
 
     fn reset(&mut self) {
