@@ -36,7 +36,7 @@ impl DecodingContext {
             huffman_decoder: None,
             decoded: Vec::new(),
             offsets: [1, 4, 8],
-            window_size: window_size,
+            window_size,
             ll_repeat_decoder: None,
             cmov_repeat_decoder: None,
             ml_repeat_decoder: None,
@@ -51,7 +51,7 @@ impl DecodingContext {
             (3, 0) => {
                 self.offsets[2] = self.offsets[1];
                 self.offsets[1] = self.offsets[0];
-                self.offsets[0] = self.offsets[0] - 1;
+                self.offsets[0] -= 1;
             }
             (3, _) => {
                 let temp = self.offsets[2];
@@ -66,14 +66,10 @@ impl DecodingContext {
                 self.offsets[0] = temp;
             }
             (2, _) => {
-                let temp = self.offsets[1];
-                self.offsets[1] = self.offsets[0];
-                self.offsets[0] = temp;
+                self.offsets.swap(0,1);
             }
             (1, 0) => {
-                let temp = self.offsets[1];
-                self.offsets[1] = self.offsets[0];
-                self.offsets[0] = temp;
+                self.offsets.swap(0,1);
             }
             (1, _) => (),
             (_, _) => {
@@ -82,7 +78,7 @@ impl DecodingContext {
                 self.offsets[0] = offset - 3;
             }
         }
-        return Ok(self.offsets[1]);
+        Ok(self.offsets[0])
     }
 
     /// Execute the sequences while updating the offsets
@@ -111,8 +107,8 @@ impl DecodingContext {
             }
         }
 
-        for literals_pos in literals_pos..literals.len() {
-            self.decoded.push(literals[literals_pos]);
+        for literal in literals.iter().skip(literals_pos) {
+            self.decoded.push(*literal);
         }
 
         Ok(())

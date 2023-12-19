@@ -144,7 +144,7 @@ impl<'a> Sequences<'a> {
 
     /// Get the correct decoder given the context (which the stores the previous usable decoder)
     /// the SymbolCompressionMode and the code type
-    fn get_decoder<'d>(
+    fn get_decoder(
         code_type: CodeType,
         mode: SymbolCompressionMode,
         previous_decoder: &Option<SymbolCompressionMode>,

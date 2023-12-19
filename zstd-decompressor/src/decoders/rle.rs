@@ -13,7 +13,7 @@ impl RLEDecoder {
     }
 }
 
-impl<'a> BitDecoder<u16> for RLEDecoder {
+impl BitDecoder<u16> for RLEDecoder {
     fn initialize(&mut self, _bitstream: &mut BackwardBitParser) -> Result<()> {
         Ok(())
     }

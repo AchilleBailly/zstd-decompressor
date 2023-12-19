@@ -32,7 +32,7 @@ impl<'a> ForwardByteParser<'a> {
     }
 
     pub fn iter(self) -> frame::FrameIterator<'a> {
-        return frame::FrameIterator { parser: self };
+        frame::FrameIterator { parser: self }
     }
 
     /// Retrieve the next byte unparsed
@@ -51,7 +51,7 @@ impl<'a> ForwardByteParser<'a> {
 
     /// Return the number of bytes still unparsed
     pub fn len(&self) -> usize {
-        return self.0.len();
+        self.0.len()
     }
 
     /// Check if the input is exhausted
@@ -126,7 +126,7 @@ impl<'a> ForwardBitParser<'a> {
 impl<'a> ForwardBitParser<'a> {
     /// Create a new forward bit parser
     pub fn new(data: &'a [u8]) -> Result<Self> {
-        if data.len() == 0 {
+        if data.is_empty() {
             return Err(Error::EmptyInputData);
         }
         Ok(ForwardBitParser {
@@ -195,14 +195,14 @@ impl BackwardBitParser {
     /// Create a new backward bit parser. The header is skipped automatically or
     /// an error is returned if the initial 1 cannot be found in the first 8 bits.
     pub fn new(data: &[u8]) -> Result<Self> {
-        if data.len() == 0 {
+        if data.is_empty() {
             return Err(Error::EmptyInputData);
         }
         if data.last().unwrap() == &0 {
             return Err(Error::NullByte);
         }
 
-        let data = data.iter().rev().map(|&v| v).collect::<Vec<u8>>();
+        let data = data.iter().rev().copied().collect::<Vec<u8>>();
         let mut i = 1;
 
         while data[0] & (1 << (8 - i)) == 0 {
@@ -211,7 +211,7 @@ impl BackwardBitParser {
 
         Ok(BackwardBitParser {
             readable: data.len() * 8 - i,
-            data: data,
+            data,
             pos: i,
         })
     }

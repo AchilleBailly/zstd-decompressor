@@ -37,7 +37,7 @@ pub enum LiteralsSection<'a> {
 
 enum LiteralType {
     Raw = 0,
-    RLE = 1,
+    Rle = 1,
     Compressed = 2,
     Treeless = 3,
 }
@@ -56,7 +56,7 @@ impl<'a> LiteralsSection<'a> {
                 jump_table,
                 data,
             } => {
-                if huffman_decoder != None {
+                if huffman_decoder.is_some() {
                     context.huffman_decoder = huffman_decoder;
                 }
 
@@ -92,7 +92,7 @@ impl<'a> LiteralsSection<'a> {
             LiteralType::Raw => Ok(LiteralsSection::RawLiteralsBlock {
                 data: input.slice(regen_size)?,
             }),
-            LiteralType::RLE => Ok(LiteralsSection::RLELiteralsBlock {
+            LiteralType::Rle => Ok(LiteralsSection::RLELiteralsBlock {
                 byte: input.u8()?,
                 repeat: regen_size as u32,
             }),
@@ -125,7 +125,7 @@ impl<'a> LiteralsSection<'a> {
                 Ok(LiteralsSection::CompressedLiteralsBlock {
                     huffman_decoder: tree,
                     regenerated_size: regen_size,
-                    jump_table: jump_table,
+                    jump_table,
                     data: new_input.slice(new_input.len())?,
                 })
             }
@@ -196,7 +196,7 @@ impl<'a> LiteralsSection<'a> {
 
         let lit_type = match literal_type {
             0 => LiteralType::Raw,
-            1 => LiteralType::RLE,
+            1 => LiteralType::Rle,
             2 => LiteralType::Compressed,
             3 => LiteralType::Treeless,
             _ => unreachable!(),

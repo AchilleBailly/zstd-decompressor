@@ -160,25 +160,25 @@ impl HuffmanDecoder {
 
     pub fn from_number_of_bits(numb_bytes: Vec<u8>) -> HuffmanDecoder {
         let mut symb: Vec<(u8, u8)> = vec![];
-        for i in 0..numb_bytes.len() {
-            if numb_bytes[i] != 0 {
-                symb.push((i as u8, numb_bytes[i]))
+        for (i, item) in numb_bytes.iter().enumerate() {
+            if item != &0 {
+                symb.push((i as u8, *item))
             }
         }
         symb.sort_by(|a, b| a.1.cmp(&b.1).then(a.0.cmp(&b.0).reverse()));
         symb.reverse();
         let mut res = HuffmanDecoder::Absent;
-        for i in 0..symb.len() {
-            res.insert(symb[i].0, symb[i].1);
+        for item in symb {
+            res.insert(item.0, item.1);
         }
-        return res;
+        res
     }
 
     pub fn from_weights(weights: Vec<u8>) -> Result<HuffmanDecoder> {
         let mut sum: u32 = 0; //Pour se souvenir de la somme des poids connus
-        for i in 0..weights.len() {
-            if weights[i] != 0 {
-                sum += 1 << (weights[i] - 1); //On calcule la somme
+        for &poid in weights.iter() {
+            if poid != 0 {
+                sum += 1 << (poid - 1); //On calcule la somme
             }
         }
         let mut puissance: u8 = discrete_log2(sum); //On calcule la puissance
@@ -190,16 +190,16 @@ impl HuffmanDecoder {
         let manquant: u8 = ((1u32 << puissance) - sum) as u8;
 
         let mut prefixewidths: Vec<u8> = vec![];
-        for i in 0..weights.len() {
-            if weights[i] != 0 {
-                prefixewidths.push(puissance + 1 - weights[i]);
+        for poid in weights {
+            if poid != 0 {
+                prefixewidths.push(puissance + 1 - poid);
             } else {
                 prefixewidths.push(0);
             }
         }
         prefixewidths.push(puissance + 1 - manquant);
 
-        return Ok(Self::from_number_of_bits(prefixewidths));
+        Ok(Self::from_number_of_bits(prefixewidths))
     }
 
     pub fn decode(&self, parser: &mut BackwardBitParser) -> Result<u8> {
@@ -208,8 +208,8 @@ impl HuffmanDecoder {
             HuffmanDecoder::Tree { left, right } => {
                 let bit = parser.take(1)?;
                 match bit {
-                    0 => return left.decode(parser),
-                    1 => return right.decode(parser),
+                    0 => left.decode(parser),
+                    1 => right.decode(parser),
                     _ => unreachable!(),
                 }
             }
