@@ -24,7 +24,7 @@ impl AlternatingDecoder {
     }
 }
 
-impl<'a> BitDecoder<u16> for AlternatingDecoder {
+impl BitDecoder<u16> for AlternatingDecoder {
     fn initialize(&mut self, bitstream: &mut BackwardBitParser) -> Result<()> {
         self.first_decoder.initialize(bitstream)?;
         self.second_decoder.initialize(bitstream)?;
@@ -35,9 +35,9 @@ impl<'a> BitDecoder<u16> for AlternatingDecoder {
 
     fn expected_bits(&self) -> usize {
         if self.last_updated_is_first {
-            return self.second_decoder.expected_bits();
+            self.second_decoder.expected_bits()
         } else {
-            return self.first_decoder.expected_bits();
+            self.first_decoder.expected_bits()
         }
     }
 

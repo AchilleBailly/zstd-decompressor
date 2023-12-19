@@ -41,7 +41,7 @@ pub enum Error {
 const MAGIC_ZSTD: u32 = 0xFD2FB528;
 const MAGIC_SKIP: u32 = 0x184D2A50; //
 
-pub const MAX_WIN_SIZE: u64 = 8 * 1 << 20; // 8MiB
+pub const MAX_WIN_SIZE: u64 = 8 << 20; // 8MiB
 
 #[derive(Debug)]
 pub enum Frame<'a> {
@@ -66,7 +66,7 @@ impl<'a> Frame<'a> {
             v if v ^ MAGIC_SKIP <= 0x0F => {
                 let data_len = input.le_u32()? as usize;
                 let sf = SkippableFrame {
-                    magic: magic,
+                    magic,
                     data: input.slice(data_len)?,
                 };
 
@@ -108,7 +108,7 @@ pub struct FrameHeader {
 }
 
 impl FrameHeader {
-    pub fn parse<'a>(input: &mut ForwardByteParser<'a>) -> Result<Self> {
+    pub fn parse(input: &mut ForwardByteParser<'_>) -> Result<Self> {
         let mut header = ForwardBitParser::new(input.slice(1)?).unwrap();
 
         let dict_id_flag = header.take(2).unwrap();
@@ -170,13 +170,13 @@ impl FrameHeader {
 
         Ok(FrameHeader {
             content_checksum_flag: content_checksum_flag != 0,
-            window_size: window_size,
+            window_size,
             dictionnary_id: dict_id,
-            content_size: content_size,
+            content_size,
         })
     }
 
-    fn parse_window_descriptor<'a>(input: &mut ForwardByteParser<'a>) -> Result<u64> {
+    fn parse_window_descriptor(input: &mut ForwardByteParser<'_>) -> Result<u64> {
         let window_descriptor = input.u8()?;
         let (mantissa, exponent) = get_n_bits(window_descriptor, 3);
 
@@ -234,10 +234,7 @@ impl<'a> ZStandardFrame<'a> {
 
         for block in self.blocks.into_iter() {
             block.decode(&mut context)?; // Copying block content, TODO: check if possible other way
-            match context.checksum {
-                Some(mut hash) => hash.write(&context.decoded), //Building the hash by adding decoded data
-                None => (),
-            }
+            if let Some(mut hash) = context.checksum { hash.write(&context.decoded) }
         }
 
         if self.header.content_checksum_flag {
@@ -248,9 +245,9 @@ impl<'a> ZStandardFrame<'a> {
                 println!("Warning: Bad checksum !");
             }
 
-            return Ok(context.decoded);
+            Ok(context.decoded)
         } else {
-            return Ok(context.decoded);
+            Ok(context.decoded)
         }
     }
 

@@ -60,10 +60,8 @@ pub fn parse_fse_table(input: &mut ForwardBitParser) -> Result<(u8, Vec<i16>)> {
         if proba == 0 {
             loop {
                 let zeros = input.take(2)?;
-                for _ in 0..zeros {
-                    n_sym += 1;
-                    distribution.push(0);
-                }
+                distribution.append(&mut vec![0; zeros as usize]);
+                n_sym += zeros as usize;
 
                 if zeros != 3 {
                     break;
@@ -79,7 +77,7 @@ pub fn parse_fse_table(input: &mut ForwardBitParser) -> Result<(u8, Vec<i16>)> {
         return Err(Error::CorruptedTable);
     }
 
-    return Ok((al, distribution));
+    Ok((al, distribution))
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -164,7 +162,7 @@ impl FseTable {
                         break;
                     }
 
-                    while !matches!(tmp_table[position], None) {
+                    while tmp_table[position].is_some(){
                         position =
                             (position + (table_size >> 1) + (table_size >> 3) + 3) % table_size;
                     }
@@ -175,7 +173,7 @@ impl FseTable {
         let mut tmp_table = tmp_table
             .into_iter()
             .map(|v| match v {
-                None => return Err(Error::CorruptedTable),
+                None => Err(Error::CorruptedTable),
                 Some(s) => Ok(s),
             })
             .collect::<Result<Vec<TmpState>>>()?;
@@ -291,7 +289,7 @@ impl FseDecoder {
     // }
 }
 
-impl<'a> BitDecoder<u16> for FseDecoder {
+impl BitDecoder<u16> for FseDecoder {
     fn initialize(&mut self, bitstream: &mut BackwardBitParser) -> Result<()> {
         let state = bitstream.take(self.table.al() as usize)? as usize;
 
@@ -307,7 +305,7 @@ impl<'a> BitDecoder<u16> for FseDecoder {
     }
 
     fn symbol(&mut self) -> u16 {
-        if matches!(self.next_symbol, None) {
+        if self.next_symbol.is_none() {
             panic!("Attempting to retrieve non set symbol, you may need to initialize or update first.");
         }
 

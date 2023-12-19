@@ -33,9 +33,9 @@ impl<'d> SequenceDecoder<'d> {
         table: &[(u16, usize, usize)],
         bitstream: &mut BackwardBitParser,
     ) -> Result<usize> {
-        let (_, baseline, nb_bits) = table.iter().filter(|v| v.0 == code).next().unwrap();
+        let (_, baseline, nb_bits) = table.iter().find(|v| v.0 == code).unwrap();
 
-        Ok(bitstream.take(*nb_bits)? as usize + *baseline as usize)
+        Ok(bitstream.take(*nb_bits)? as usize + *baseline)
     }
 
     pub fn update_symbol_value(&mut self, bitstream: &mut BackwardBitParser) -> Result<bool> {
