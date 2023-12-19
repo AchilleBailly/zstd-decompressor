@@ -234,7 +234,9 @@ impl<'a> ZStandardFrame<'a> {
 
         for block in self.blocks.into_iter() {
             block.decode(&mut context)?; // Copying block content, TODO: check if possible other way
-            if let Some(mut hash) = context.checksum { hash.write(&context.decoded) }
+            if let Some(mut hash) = context.checksum {
+                hash.write(&context.decoded)
+            }
         }
 
         if self.header.content_checksum_flag {
@@ -242,7 +244,7 @@ impl<'a> ZStandardFrame<'a> {
 
             if context.checksum.unwrap().finish() as u32 == self.checksum.unwrap() {
             } else {
-                println!("Warning: Bad checksum !");
+                eprintln!("Warning: Bad checksum !");
             }
 
             Ok(context.decoded)
