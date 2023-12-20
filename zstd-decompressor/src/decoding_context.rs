@@ -10,6 +10,8 @@ pub enum Error {
     WindowSizeTooBig { max: u64, got: u64 },
     #[error{"Bad Offset value (0)"}]
     NullOffsetError,
+    #[error{"Error while decoding sequence : impossible value decoded"}]
+    ImpossibleValue,
 }
 
 pub struct DecodingContext {
@@ -53,23 +55,14 @@ impl DecodingContext {
                 self.offsets[1] = self.offsets[0];
                 self.offsets[0] -= 1;
             }
-            (3, _) => {
+            (3, _) | (2, 0) => {
                 let temp = self.offsets[2];
                 self.offsets[2] = self.offsets[1];
                 self.offsets[1] = self.offsets[0];
                 self.offsets[0] = temp;
             }
-            (2, 0) => {
-                let temp = self.offsets[2];
-                self.offsets[2] = self.offsets[1];
-                self.offsets[1] = self.offsets[0];
-                self.offsets[0] = temp;
-            }
-            (2, _) => {
-                self.offsets.swap(0,1);
-            }
-            (1, 0) => {
-                self.offsets.swap(0,1);
+            (2, _) | (1, 0) => {
+                self.offsets.swap(0, 1);
             }
             (1, _) => (),
             (_, _) => {
@@ -85,16 +78,19 @@ impl DecodingContext {
     pub fn execute_sequences(
         &mut self,
         sequences: Vec<(usize, usize, usize)>,
-        literals: &[u8],
+        mut literals: &[u8],
     ) -> Result<(), Error> {
-        let mut literals_pos = 0;
-        for (literal_length, decoded_offset, match_length) in sequences.into_iter() {
-            for _ in 0..literal_length {
-                self.decoded.push(literals[literals_pos]);
-                literals_pos += 1;
+        for (literal_length, decoded_offset, match_length) in sequences {
+            let decoded_offset = self.decode_offset(decoded_offset, literal_length)?;
+
+            if literal_length > literals.len()
+                || decoded_offset > self.decoded.len() + literal_length
+            {
+                return Err(Error::ImpossibleValue);
             }
 
-            let decoded_offset = self.decode_offset(decoded_offset, literal_length)?;
+            self.decoded.extend_from_slice(&literals[..literal_length]);
+            literals = &literals[literal_length..];
 
             for _ in 0..match_length {
                 self.decoded
@@ -102,7 +98,7 @@ impl DecodingContext {
             }
         }
 
-        for literal in literals.iter().skip(literals_pos) {
+        for literal in literals {
             self.decoded.push(*literal);
         }
 

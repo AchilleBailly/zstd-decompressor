@@ -1,3 +1,4 @@
+#![allow(clippy::cast_possible_truncation)]
 pub mod block;
 pub mod decoders;
 pub mod decoding_context;

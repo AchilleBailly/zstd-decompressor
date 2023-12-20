@@ -43,6 +43,10 @@ impl<'d> SequenceDecoder<'d> {
         let ll_code = self.ll_code_decoder.symbol();
         let match_l_code = self.ml_code_decoder.symbol();
 
+        if ll_code > MAX_LL_CODE || match_l_code > MAX_ML_CODE || offset_code > MAX_OFFSET_CODE {
+            return Err(super::Error::SequenceCodeMaxValueExceeded);
+        }
+
         self.cmov_value = (1usize << offset_code) + bitstream.take(offset_code as usize)? as usize;
         self.match_value = self.get_value(match_l_code, &ML_CODE_TO_VALUE, bitstream)?;
         self.ll_value = self.get_value(ll_code, &LL_CODE_TO_VALUE, bitstream)?;
@@ -88,6 +92,9 @@ impl<'a> BitDecoder<(usize, usize, usize)> for SequenceDecoder<'a> {
     }
 }
 
+const MAX_OFFSET_CODE: u16 = 31;
+const MAX_LL_CODE: u16 = 35;
+const MAX_ML_CODE: u16 = 52;
 const ML_CODE_TO_VALUE: [(u16, usize, usize); 53] = [
     (0, 3, 0),
     (1, 4, 0),

@@ -31,9 +31,11 @@ pub(crate) fn min_bits_required<T: num_traits::PrimInt + From<u8>>(value: T) -> 
 }
 
 pub(crate) fn discrete_log2<T: num_traits::PrimInt + From<u8>>(value: T) -> u8 {
-    if value <= 0.into() {
-        panic!("Cannot call log on negative or zero value");
-    }
+    assert!(
+        value > 0.into(),
+        "Cannot call log on negative or zero value"
+    );
+
     min_bits_required(value) - 1
 }
 

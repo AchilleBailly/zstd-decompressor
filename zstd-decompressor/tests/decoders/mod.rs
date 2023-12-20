@@ -1,3 +1,4 @@
+mod alternating;
 mod fse;
 mod huffman;
-mod alternating;
+mod sequence;

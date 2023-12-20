@@ -6,6 +6,7 @@ extern crate zstd_decompressor;
 use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {
+    println!("New data, len: {}", data.len());
     let parser = zstd_decompressor::parsing::ForwardByteParser::new(data);
 
     for frame in parser.iter() {
@@ -21,7 +22,8 @@ fuzz_target!(|data: &[u8]| {
                 &mut frame.decode();
             }
             Err(e) => {
-                // dbg!(e);
+                dbg!(e);
+                break;
             }
         }
     }

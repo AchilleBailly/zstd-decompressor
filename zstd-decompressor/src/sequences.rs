@@ -127,7 +127,7 @@ impl<'a> Sequences<'a> {
                     }
                     SymbolCompressionModeTmp::FseCompressedMode => {
                         new_data = input.slice(input.len())?;
-                        let mut parser = ForwardBitParser::new(new_data).unwrap();
+                        let mut parser = ForwardBitParser::new(new_data)?;
                         let mode =
                             SymbolCompressionMode::FseCompressedMode(FseTable::parse(&mut parser)?);
                         new_data = &new_data[parser.bytes_read()..];
@@ -143,7 +143,7 @@ impl<'a> Sequences<'a> {
     }
 
     /// Get the correct decoder given the context (which the stores the previous usable decoder)
-    /// the SymbolCompressionMode and the code type
+    /// the `SymbolCompressionMode` and the code type
     fn get_decoder(
         code_type: CodeType,
         mode: SymbolCompressionMode,

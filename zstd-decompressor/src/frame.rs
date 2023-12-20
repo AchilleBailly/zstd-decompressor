@@ -45,12 +45,12 @@ pub const MAX_WIN_SIZE: u64 = 8 << 20; // 8MiB
 
 #[derive(Debug)]
 pub enum Frame<'a> {
-    ZStandardFrame(ZStandardFrame<'a>),
-    SkippableFrame(SkippableFrame<'a>),
+    ZStandardFrame(ZStandard<'a>),
+    SkippableFrame(Skippable<'a>),
 }
 
 #[derive(Debug)]
-pub struct SkippableFrame<'a> {
+pub struct Skippable<'a> {
     pub magic: u32,
     pub data: &'a [u8],
 }
@@ -62,10 +62,10 @@ impl<'a> Frame<'a> {
         let magic = input.le_u32()?;
 
         match magic {
-            MAGIC_ZSTD => Ok(Frame::ZStandardFrame(ZStandardFrame::parse(input)?)),
+            MAGIC_ZSTD => Ok(Frame::ZStandardFrame(ZStandard::parse(input)?)),
             v if v ^ MAGIC_SKIP <= 0x0F => {
                 let data_len = input.le_u32()? as usize;
-                let sf = SkippableFrame {
+                let sf = Skippable {
                     magic,
                     data: input.slice(data_len)?,
                 };
@@ -100,14 +100,14 @@ impl<'a> Iterator for FrameIterator<'a> {
 }
 
 #[derive(Debug)]
-pub struct FrameHeader {
+pub struct Header {
     pub content_checksum_flag: bool,
     pub window_size: u64,
     pub dictionnary_id: Option<u64>,
     pub content_size: Option<u64>,
 }
 
-impl FrameHeader {
+impl Header {
     pub fn parse(input: &mut ForwardByteParser<'_>) -> Result<Self> {
         let mut header = ForwardBitParser::new(input.slice(1)?).unwrap();
 
@@ -168,7 +168,7 @@ impl FrameHeader {
             .or(content_size)
             .expect("Invalid configuration, no window size and no content_size !");
 
-        Ok(FrameHeader {
+        Ok(Header {
             content_checksum_flag: content_checksum_flag != 0,
             window_size,
             dictionnary_id: dict_id,
@@ -188,15 +188,15 @@ impl FrameHeader {
 }
 
 #[derive(Debug)]
-pub struct ZStandardFrame<'a> {
-    header: FrameHeader,
+pub struct ZStandard<'a> {
+    header: Header,
     blocks: Vec<Block<'a>>,
     checksum: Option<u32>,
 }
 
-impl<'a> ZStandardFrame<'a> {
+impl<'a> ZStandard<'a> {
     pub fn parse(input: &mut ForwardByteParser<'a>) -> Result<Self> {
-        let header = FrameHeader::parse(input)?;
+        let header = Header::parse(input)?;
 
         if header.window_size > MAX_WIN_SIZE {
             return Err(Error::WindowSizeTooBig {
@@ -222,7 +222,7 @@ impl<'a> ZStandardFrame<'a> {
             None
         };
 
-        Ok(ZStandardFrame {
+        Ok(ZStandard {
             header,
             blocks,
             checksum,
@@ -232,10 +232,10 @@ impl<'a> ZStandardFrame<'a> {
     pub fn decode(self) -> Result<Vec<u8>> {
         let mut context: DecodingContext = DecodingContext::new(self.header.window_size)?;
 
-        for block in self.blocks.into_iter() {
+        for block in self.blocks {
             block.decode(&mut context)?; // Copying block content, TODO: check if possible other way
             if let Some(mut hash) = context.checksum {
-                hash.write(&context.decoded)
+                hash.write(&context.decoded);
             }
         }
 
@@ -253,7 +253,7 @@ impl<'a> ZStandardFrame<'a> {
         }
     }
 
-    pub fn header(&self) -> &FrameHeader {
+    pub fn header(&self) -> &Header {
         &self.header
     }
 
@@ -270,7 +270,7 @@ impl<'a> ZStandardFrame<'a> {
 mod parse_window_descriptor_tests {
     use crate::parsing::ForwardByteParser;
 
-    use super::FrameHeader;
+    use super::Header;
 
     #[test]
     fn parse_window_descriptor_min_ok() {
@@ -278,7 +278,7 @@ mod parse_window_descriptor_tests {
 
         assert_eq!(
             1 << 10,
-            FrameHeader::parse_window_descriptor(&mut parser).unwrap()
+            Header::parse_window_descriptor(&mut parser).unwrap()
         );
     }
 
@@ -288,7 +288,7 @@ mod parse_window_descriptor_tests {
 
         assert_eq!(
             (1 << 41) + 7 * (1 << 38),
-            FrameHeader::parse_window_descriptor(&mut parser).unwrap()
+            Header::parse_window_descriptor(&mut parser).unwrap()
         );
     }
 
@@ -298,7 +298,7 @@ mod parse_window_descriptor_tests {
 
         assert_eq!(
             (1 << 10) + 1024 / 8,
-            FrameHeader::parse_window_descriptor(&mut parser).unwrap()
+            Header::parse_window_descriptor(&mut parser).unwrap()
         );
     }
 }

@@ -148,7 +148,7 @@ pub mod skippable_frame_tests {
 
 #[cfg(test)]
 pub mod frame_header_tests {
-    use zstd_decompressor::frame::{Error, FrameHeader};
+    use zstd_decompressor::frame::{Error, Header};
     use zstd_decompressor::parsing::ForwardByteParser;
 
     #[test]
@@ -159,7 +159,7 @@ pub mod frame_header_tests {
             0xcc, // ingle segment flag is 1 and window size will equal to frame content size
         ]);
 
-        let h = FrameHeader::parse(&mut parser).unwrap();
+        let h = Header::parse(&mut parser).unwrap();
 
         assert_eq!(h.content_checksum_flag, false, "Content checksum is not OK");
         assert_eq!(h.window_size, 0xcccc + 256, "Window size is not OK");
@@ -178,7 +178,7 @@ pub mod frame_header_tests {
                   // because we have 2 bytes for content size, we have to add 256 to the read value
         ]);
 
-        let h = FrameHeader::parse(&mut parser).unwrap();
+        let h = Header::parse(&mut parser).unwrap();
 
         assert_eq!(h.content_checksum_flag, false, "Content checksum is not OK");
         assert_eq!(h.window_size, 1024, "Window size is not OK");
@@ -192,7 +192,7 @@ pub mod frame_header_tests {
             0b01_0_0_1_0_00, // reserved is set so should throw error
         ]);
 
-        let h = FrameHeader::parse(&mut parser);
+        let h = Header::parse(&mut parser);
 
         let _ret = Error::ReservedSet(String::from("FrameHeader"));
         assert!(matches!(h, Err(_ret)));
@@ -211,7 +211,7 @@ pub mod frame_header_tests {
                   // because we have 2 bytes for content size, we have to add 256 to the read value
         ]);
 
-        let h = FrameHeader::parse(&mut parser).unwrap();
+        let h = Header::parse(&mut parser).unwrap();
 
         assert_eq!(h.content_checksum_flag, false, "Content checksum is not OK");
         assert_eq!(h.window_size, 1024, "Window size is not OK");
@@ -240,7 +240,7 @@ pub mod frame_header_tests {
                   // because we have 2 bytes for content size, we have to add 256 to the read value
         ]);
 
-        let h = FrameHeader::parse(&mut parser).unwrap();
+        let h = Header::parse(&mut parser).unwrap();
 
         assert_eq!(h.content_checksum_flag, false, "Content checksum is not OK");
         assert_eq!(h.window_size, 1024, "Window size is not OK");
@@ -283,7 +283,7 @@ pub mod z_standard_frame_tests {
             0x42, // additionnal byte
         ]);
 
-        let res = frame::ZStandardFrame::parse(&mut parser).unwrap();
+        let res = frame::ZStandard::parse(&mut parser).unwrap();
 
         assert_eq!(Some(1), res.checksum());
         assert_eq!(1, res.blocks().len());
@@ -306,7 +306,7 @@ pub mod z_standard_frame_tests {
             0x42, // additionnal byte
         ]);
 
-        let res = frame::ZStandardFrame::parse(&mut parser).unwrap();
+        let res = frame::ZStandard::parse(&mut parser).unwrap();
 
         assert_eq!(None, res.checksum());
         assert_eq!(1, res.blocks().len());
@@ -329,7 +329,7 @@ pub mod z_standard_frame_tests {
             0x42, //< // no checksum at the end, should throw error
         ]);
 
-        let res = frame::ZStandardFrame::parse(&mut parser);
+        let res = frame::ZStandard::parse(&mut parser);
 
         assert!(matches!(
             res,
@@ -359,7 +359,7 @@ pub mod z_standard_frame_tests {
             0x42, //< // no checksum at the end, should throw error
         ]);
 
-        let res = frame::ZStandardFrame::parse(&mut parser);
+        let res = frame::ZStandard::parse(&mut parser);
 
         let _got = (1u64 << 41) + 7 * (1u64 << 38);
         assert!(matches!(

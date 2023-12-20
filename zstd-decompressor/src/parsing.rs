@@ -20,8 +20,8 @@ pub enum Error {
     EmptyInputData,
     #[error{"The first byte is null"}]
     NullByte,
-    #[error{"not the good number of bits available in the buffer"}]
-    NumberBitsError(#[from] BitError),
+    #[error{"Asking for an empty slice"}]
+    EmptySliceError,
 }
 
 pub type Result<T, E = Error> = eyre::Result<T, E>;
@@ -62,6 +62,9 @@ impl<'a> ForwardByteParser<'a> {
     /// Extract `len` bytes as a slice
     pub fn slice(&mut self, len: usize) -> Result<&'a [u8]> {
         let old_len = self.len();
+        if len == 0 {
+            return Err(Error::EmptySliceError);
+        }
         if old_len < len {
             // Case where there are fewer bytes available than len
             return Err(Error::NotEnoughBytes {
@@ -117,7 +120,7 @@ pub struct ForwardBitParser<'a> {
 impl<'a> ForwardBitParser<'a> {
     /// Will return the number of bytes that were read, including the one being read it it was not fully read
     pub fn bytes_read(&self) -> usize {
-        let partially_consumed = if self.pos % 8 > 0 { 1 } else { 0 };
+        let partially_consumed = usize::from(self.pos % 8 > 0);
 
         self.pos / 8 + partially_consumed
     }
@@ -147,7 +150,7 @@ impl<'a> ForwardBitParser<'a> {
 
     /// Get the given number of bits, or return an error.
     pub fn take(&mut self, len: usize) -> Result<u64> {
-        if self.data.bit_len() < len {
+        if self.data.bit_len() - self.pos < len {
             return Err(Error::NotEnoughBits {
                 requested: len,
                 available: self.len(),
@@ -168,7 +171,7 @@ impl<'a> ForwardBitParser<'a> {
 
     /// Peek at next len bits without consuming them
     pub fn peek(&self, len: usize) -> Result<u64> {
-        if self.data.bit_len() < len {
+        if self.data.bit_len() - self.pos < len {
             return Err(Error::NotEnoughBits {
                 requested: len,
                 available: self.data.bit_len(),
@@ -223,7 +226,7 @@ impl BackwardBitParser {
 
     /// Get the given number of bits, or return an error.
     pub fn take(&mut self, len: usize) -> Result<u64> {
-        if self.data.len() * 8 < len {
+        if self.data.len() * 8 - self.pos < len {
             return Err(Error::NotEnoughBits {
                 requested: len,
                 available: self.len(),

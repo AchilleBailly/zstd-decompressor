@@ -31,27 +31,15 @@ pub fn parse_fse_table(input: &mut ForwardBitParser) -> Result<(u8, Vec<i16>)> {
         let lower_mask = (1u16 << (bits_to_read - 1)) - 1;
         let threshold = (1u16 << bits_to_read) - 1 - (remaining as u16 + 1);
 
-        let _reuse;
         let decoded = if (peeked & lower_mask) < threshold {
-            _reuse = true;
             input.take(bits_to_read - 1)? as i16
         } else if peeked > lower_mask {
-            _reuse = false;
             input.take(bits_to_read)? as i16 - threshold as i16
         } else {
-            _reuse = false;
             input.take(bits_to_read)? as i16
         };
 
         let proba = decoded - 1;
-        // println!(
-        //     "{: >3} {: >9} {: >3} {: >5} {: >2}",
-        //     remaining,
-        //     format!("{:0>1$b}", peeked, bits_to_read),
-        //     peeked,
-        //     reuse,
-        //     proba
-        // );
 
         remaining -= proba.abs() as i32;
         distribution.push(proba);
@@ -84,14 +72,14 @@ pub fn parse_fse_table(input: &mut ForwardBitParser) -> Result<(u8, Vec<i16>)> {
 pub struct State {
     pub output: u16,
     pub baseline: u16,
-    pub bits_to_read: u8,
+    pub bits_to_read: u16,
 }
 
 #[derive(Clone, Debug)]
 struct TmpState {
     output: u16,
     baseline: Option<u16>,
-    bits_to_read: Option<u8>,
+    bits_to_read: Option<u16>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -129,28 +117,31 @@ impl FseTable {
         let mut tmp_table: Vec<Option<TmpState>> = vec![None; table_size];
 
         // fill last elements with less than one probability symbols
+        let mut zero_pos = table_size;
         distribution
             .iter()
             .enumerate()
             .filter(|(_, &v)| v == -1) // Only retrieve less than one proba symbols
-            .rev() // Reverse to have them in the same order as the end of tmp_table
-            .zip(tmp_table.iter_mut().rev())
-            .for_each(|(s, v)| {
-                *v = Some(TmpState {
-                    output: s.0 as u16,
+            // .rev() // DO NOT Reverse to have them in the same order as the end of tmp_table
+            .for_each(|(s, _)| {
+                zero_pos -= 1;
+                tmp_table[zero_pos] = Some(TmpState {
+                    output: s as u16,
                     baseline: Some(0),
-                    bits_to_read: Some(accuracy_log),
-                })
+                    bits_to_read: Some(accuracy_log as u16),
+                });
             });
 
         // Fill remaining spots with the non zero probability states
         let mut position = 0;
+        let step = (table_size >> 1) + (table_size >> 3) + 3;
+        let mask = table_size - 1;
         distribution
             .iter()
             .enumerate()
             .filter(|(_, &v)| v > 0)
             .for_each(|(symbol, &proba)| {
-                for i in 0..proba {
+                for _ in 0..proba {
                     // each symbol is represented proba times in the table
                     tmp_table[position] = Some(TmpState {
                         output: symbol as u16,
@@ -158,13 +149,9 @@ impl FseTable {
                         bits_to_read: None,
                     });
 
-                    if symbol == distribution.len() - 1 && i == proba - 1 {
-                        break;
-                    }
-
-                    while tmp_table[position].is_some(){
-                        position =
-                            (position + (table_size >> 1) + (table_size >> 3) + 3) % table_size;
+                    position = (position + step) & mask;
+                    while position >= zero_pos {
+                        position = (position + step) & mask;
                     }
                 }
             });
@@ -194,7 +181,7 @@ impl FseTable {
                 let new_i = i % num_states;
                 let (add, mult) = if new_i != i { (1, 2) } else { (0, 1) };
 
-                grouped[new_i].bits_to_read = Some((base_nb + add) as u8);
+                grouped[new_i].bits_to_read = Some((base_nb + add) as u16);
                 grouped[new_i].baseline = Some(baseline);
 
                 baseline += base_width as u16 * mult;

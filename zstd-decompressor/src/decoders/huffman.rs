@@ -112,7 +112,7 @@ impl HuffmanDecoder {
 
         let fse_table = FseTable::parse(&mut parser)?;
 
-        let mut bitstream = BackwardBitParser::new(&data[parser.bytes_read()..]).unwrap();
+        let mut bitstream = BackwardBitParser::new(&data[parser.bytes_read()..])?;
 
         let mut weights = Vec::new();
         let mut decoder = AlternatingDecoder::new(fse_table);
