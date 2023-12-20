@@ -140,8 +140,8 @@ impl<'a> LiteralsSection<'a> {
         let literal_type = parser.take(2).unwrap();
 
         let (regen_size, compressed_size, n_streams) = match literal_type {
+            // RLE or Raw literals type
             0 | 1 => (
-                // RLE or Raw literals type
                 match parser.peek(2).unwrap() {
                     0 | 2 => header as usize >> 3,
                     1 => ((header as usize) >> 4) + ((input.u8()? as usize) << 4),
@@ -155,8 +155,8 @@ impl<'a> LiteralsSection<'a> {
                 0,
                 1,
             ),
+            // Compressed or TreeLess
             2 | 3 => match parser.take(2).unwrap() {
-                // Compressed or TreeLess
                 0 => {
                     let mut parser = ForwardBitParser::new(input.slice(2)?).unwrap();
                     (
