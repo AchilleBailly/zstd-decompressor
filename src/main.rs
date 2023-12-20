@@ -15,6 +15,10 @@ struct Args {
     #[arg(short, long)]
     info: bool,
 
+    ///Output to given file (overwritting) instead of writing to stdout
+    #[arg(short, long, value_names = ["filename"])]
+    output: Option<String>,
+
     ///Output Skippable frames as well
     #[arg(short, long, action)]
     print_skippable: bool,
@@ -47,7 +51,10 @@ fn main() -> eyre::Result<()> {
             Err(e) => return Err(e.into()),
         }
     }
-    println!("{}", String::from_utf8(res).unwrap());
-
+    if args.output.is_some() {
+        std::fs::write(args.output.unwrap(), String::from_utf8(res).unwrap())?;
+    } else {
+        print!("{}", String::from_utf8(res).unwrap());
+    }
     Ok(())
 }

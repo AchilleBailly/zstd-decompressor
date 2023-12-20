@@ -12,7 +12,7 @@ mod sequence_decoer_tests {
         let parser = ForwardByteParser::new(&data);
         for frame in parser.iter() {
             match frame {
-                Ok(zstd_decompressor::frame::Frame::SkippableFrame(skippable)) => {
+                Ok(zstd_decompressor::frame::Frame::SkippableFrame(_skippable)) => {
                     // if args.print_skippable {
                     //     res.push(
                     //         &mut zstd_decompressor::frame::Frame::SkippableFrame(skippable).decode(),
@@ -20,7 +20,7 @@ mod sequence_decoer_tests {
                     // }
                 }
                 Ok(frame) => {
-                    frame.decode();
+                    let _ = frame.decode();
                 }
                 Err(e) => {
                     dbg!(e);

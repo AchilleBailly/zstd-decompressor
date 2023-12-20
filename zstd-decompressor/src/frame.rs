@@ -234,15 +234,21 @@ impl<'a> ZStandard<'a> {
 
         for block in self.blocks {
             block.decode(&mut context)?; // Copying block content, TODO: check if possible other way
-            if let Some(mut hash) = context.checksum {
-                hash.write(&context.decoded);
-            }
         }
 
         if self.header.content_checksum_flag {
             context.checksum = Some(twox_hash::XxHash64::with_seed(0));
+            if let Some(mut hash) = context.checksum {
+                hash.write(&context.decoded);
+            }
+            let check = context.checksum.unwrap().finish();
+            eprintln!(
+                "Computed: {:#b}, Read: {:#b}",
+                check,
+                self.checksum.unwrap()
+            );
 
-            if context.checksum.unwrap().finish() as u32 == self.checksum.unwrap() {
+            if check as u32 == self.checksum.unwrap() {
             } else {
                 eprintln!("Warning: Bad checksum !");
             }

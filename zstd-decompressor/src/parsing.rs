@@ -1,6 +1,6 @@
 use std::u8;
 
-use bitbuffer::{BigEndian, BitError, BitReadBuffer, LittleEndian};
+use bitbuffer::{BigEndian, BitReadBuffer, LittleEndian};
 use eyre;
 use thiserror;
 
